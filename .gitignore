@@ -268,3 +268,4 @@ videos/*.mkv
 videos/keys/*.json
 
 .DS_Store
+/.repomap.tags.cache.v1/cache.db
