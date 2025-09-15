@@ -1,0 +1,109 @@
+:root {
+  --npo-font-family: NPO Sans, arial, sans-serif;
+  --npo-font-size: 1.125em;
+  --npo-heading-font-family: Scandia, arial, sans-serif;
+  --npo-heading-font-weight: 700;
+  --scrollbar-width: 0;
+  --npo-spacing: 2.25rem;
+  --npo-spacing-xxs: 0.2962962963rem;
+  --npo-spacing-xs: 0.4444444444rem;
+  --npo-spacing-s: 0.6666666667rem;
+  --npo-spacing-m: 1rem;
+  --npo-spacing-l: 1.5rem;
+  --npo-spacing-xl: 2.25rem;
+  --npo-spacing-xxl: 3.375rem;
+  --npo-cluster-gap: 1em;
+  --npo-flag-object-gap: 1em;
+  --npo-stack-gap: 1.5em;
+  --npo-grid-gap: 2.25em;
+  --npo-switcher-gap: 2.25em;
+  --npo-radius-xxs: 0.1975308642rem;
+  --npo-radius-xs: 0.2962962963rem;
+  --npo-radius-s: 0.4444444444rem;
+  --npo-radius-m: 0.6666666667rem;
+  --npo-radius-l: 1rem;
+  --npo-radius-xl: 1.5rem;
+  --npo-radius-full: 9999px;
+  --npo-background-primary: rgb(11, 28, 54);
+  --npo-background-primary-alpha0: rgba(11, 28, 54, 0);
+  --npo-background-secondary: rgb(5, 21, 44);
+  --npo-background-tertiary: rgb(31, 52, 83);
+  --npo-background-tertiary-alpha0: rgba(31, 52, 83, 0);
+  --npo-surface-primary: rgb(31, 52, 83);
+  --npo-surface-primary-hover: rgb(41, 62, 93);
+  --npo-surface-secondary: rgb(51, 72, 104);
+  --npo-surface-tertiary: rgb(3, 14, 30);
+  --npo-surface-invert: rgb(255, 255, 255);
+  --npo-surface-highlight: rgb(255, 109, 0);
+  --npo-control-primary: rgb(51, 72, 104);
+  --npo-control-primary-hover: rgb(41, 62, 93);
+  --npo-control-secondary: rgb(11, 28, 54);
+  --npo-control-secondary-hover: rgb(5, 21, 44);
+  --npo-control-tertiary: rgb(31, 52, 83);
+  --npo-control-tertiary-hover: rgb(51, 72, 104);
+  --npo-control-invert: rgb(255, 255, 255);
+  --npo-control-dark: rgb(3, 14, 30);
+  --npo-control-highlight: rgb(255, 109, 0);
+  --npo-color-focus: var(--npo-text-highlight);
+  --npo-text-primary: rgb(255, 255, 255);
+  --npo-text-highlight: rgb(255, 109, 0);
+  --npo-text-invert: rgb(3, 14, 30);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  box-sizing: border-box;
+  scroll-behavior: smooth;
+  font-size: var(--npo-font-size);
+  line-height: 1.5;
+}
+
+*, *::before, *::after {
+  box-sizing: inherit;
+}
+
+body {
+  margin: 0;
+  font-family: var(--npo-font-family);
+  font-weight: 400;
+  color: var(--npo-text-primary);
+  background: var(--npo-background-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin-block-start: var(--npo-spacing-l);
+  margin-block-end: 0;
+  font-size: inherit;
+  font-weight: var(--npo-heading-font-weight);
+}
+
+p, ul, ol {
+  margin-block-start: var(--npo-spacing-l);
+  margin-block-end: 0;
+}
+
+a {
+  background-color: transparent;
+  color: inherit;
+}
+
+a:focus, a:hover {
+  text-decoration: none;
+}
+
+img {
+  border-style: none;
+  max-inline-size: 100%;
+  block-size: auto;
+}
+
+code, kbd, pre, samp {
+  font-family: monospace, monospace;
+  font-size: 1em;
+}
+

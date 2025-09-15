@@ -256,6 +256,14 @@ fabric.properties
 
 # End of https://www.toptal.com/developers/gitignore/api/node,webstorm
 
+# Video downloads - keep structure but ignore content
+/videos/final/*
+/videos/metadata/*
+/videos/temp/*
+!/videos/.gitkeep
+
+# Legacy paths (for cleanup)
 videos/*.mkv
 videos/keys/*.json
+
 .DS_Store

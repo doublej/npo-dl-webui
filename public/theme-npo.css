@@ -1,0 +1,269 @@
+/* NPO theme overrides for the existing UI */
+:root {
+  /* Light neutral tones for panels */
+  --npo-neutral-50: #f7f8fa;
+  --npo-neutral-75: #f3f5f8;
+  --npo-neutral-100: #eef1f4;
+  --npo-neutral-200: #e3e8ee;
+  --npo-neutral-300: #d6dde5;
+}
+
+/* Base */
+body {
+  font-family: var(--npo-font-family);
+  color: var(--npo-text-primary);
+  background: linear-gradient(180deg, var(--npo-background-secondary) 0%, var(--npo-background-primary) 240px, var(--npo-background-primary) 100%);
+  margin: 0;
+  padding: 0 !important; /* override base stylesheet padding */
+}
+
+/* Full-width app layout */
+html, body { width: 100%; min-height: 100%; }
+.container {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  background: var(--npo-neutral-75); /* lighter app background */
+  border: none;
+}
+
+/* Topbar closely matching npo.nl */
+header.topbar {
+  background: linear-gradient(180deg, var(--npo-background-secondary) 0%, var(--npo-surface-secondary) 100%);
+  color: var(--npo-text-primary);
+  border-bottom: none;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+/* Soft gradient separator under the topbar */
+header.topbar::after {
+  content: '';
+  display: block;
+  inline-size: 100%;
+  block-size: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+}
+
+.topbar__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--npo-spacing-l);
+  max-width: 1280px;
+  margin-inline: auto;
+  padding: var(--npo-spacing-m) var(--npo-spacing-l);
+}
+
+.brand { display: inline-flex; align-items: center; gap: 0.75rem; text-decoration: none; color: inherit; }
+.brand__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 40px;
+  inline-size: 40px;
+  block-size: 40px;
+  background: var(--npo-surface-highlight);
+  color: var(--npo-text-invert);
+  font-weight: 700;
+  text-transform: lowercase;
+  border-radius: var(--npo-radius-xs);
+}
+.brand__title { font-weight: 700; letter-spacing: .2px; }
+
+/* Compact status pill in topbar */
+.topbar__status {
+  font-size: 0.875rem;
+  color: rgba(255,255,255,.85);
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.12);
+  padding: 6px 10px;
+  border-radius: var(--npo-radius-s);
+  white-space: nowrap;
+}
+.topbar__status.status-complete { background: rgba(0,0,0,.15); border-color: rgba(0,0,0,.2); color: #cde7ff; }
+.topbar__status.status-partial { background: rgba(255,255,255,.06); color: #ffd7a8; }
+.topbar__status.status-empty { background: rgba(255,255,255,.04); color: #ffb8b8; }
+
+/* Tabs */
+/* Primary navigation (tabs located in topbar) */
+.primary-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--npo-spacing-m);
+}
+
+.primary-nav .tab-button {
+  color: rgba(255, 255, 255, 0.75);
+  padding: 0.75rem 0.25rem; /* taller click target, compact horizontally */
+  border-bottom: 0; /* we'll draw underline with a gradient bg */
+  background: transparent;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  font-weight: 600; /* keep weight constant to prevent layout jump */
+  display: inline-flex;
+  align-items: center;
+  background-image: linear-gradient(90deg, transparent, var(--npo-text-highlight), transparent);
+  background-repeat: no-repeat;
+  background-size: 0% 3px; /* underline hidden by default */
+  background-position: 50% 100%;
+  transition: color .2s ease, background-size .2s ease;
+}
+
+.primary-nav .tab-button:hover {
+  color: var(--npo-text-primary);
+  background-size: 100% 3px; /* reveal underline on hover */
+}
+
+.primary-nav .tab-button.active {
+  color: var(--npo-text-primary);
+  background-size: 100% 3px; /* keep underline visible when active */
+  font-weight: 600; /* override base .tab-button.active */
+}
+
+/* Forms */
+label { color: #374151; }
+
+input[type="url"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+textarea {
+  background: #ffffff;
+  border: 1px solid var(--npo-neutral-300);
+  color: var(--npo-text-invert);
+  transition: border-color .2s ease, box-shadow .2s ease;
+  border-radius: var(--npo-radius-xs);
+}
+
+input[type="url"]:focus,
+input[type="number"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+textarea:focus {
+  border-color: var(--npo-text-highlight);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255,109,0,0.2);
+}
+
+/* Buttons */
+.btn-primary {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--npo-surface-highlight), #fff 8%), var(--npo-surface-highlight));
+  color: var(--npo-text-invert);
+  border-radius: var(--npo-radius-s);
+  border: none;
+}
+.btn-primary:hover { filter: brightness(0.98); }
+.btn-primary:active { filter: brightness(0.9); }
+
+.btn-secondary {
+  background: linear-gradient(180deg, var(--npo-neutral-100), var(--npo-neutral-75));
+  color: var(--npo-text-invert);
+  border-radius: var(--npo-radius-s);
+  border: 1px solid var(--npo-neutral-300);
+}
+.btn-secondary:hover { filter: brightness(0.98); }
+
+/* Status + cards */
+.status-section { border-top-color: var(--npo-neutral-200); }
+
+.download-card {
+  background: #ffffff;
+  border-color: var(--npo-neutral-300);
+  color: var(--npo-text-invert);
+}
+.download-card.status-processing { background: var(--npo-neutral-100); }
+.download-card.status-downloading { background: var(--npo-neutral-75); }
+.download-card.status-completed { background: #ffffff; }
+.download-card.status-error { border-color: var(--npo-surface-highlight); }
+
+.progress-info { color: rgba(255, 255, 255, 0.65); }
+.error-info { color: #ffb4a6; }
+
+/* Alerts */
+.alert { background: rgba(255,255,255,.95); color: #0b0c0c; border-color: #ccd5e0; }
+.alert-success { background: rgba(255,255,255,.95); color: #0b0c0c; border-color: #cfd8dc; }
+.alert-error { background: #ffeceb; color: #7a1e16; border-color: #f4b9b3; }
+
+/* Footer */
+footer {
+  background: var(--npo-neutral-50);
+  border-top: 1px solid var(--npo-neutral-200);
+}
+footer .page-inner { max-width: 1280px; margin-inline: auto; padding: var(--npo-spacing-m) var(--npo-spacing-l); color: var(--npo-text-invert); }
+footer p { color: #4b5563; }
+footer code { background: #fff; border-color: var(--npo-neutral-300); color: var(--npo-text-invert); }
+
+/* Minor tweaks */
+.subtitle { opacity: 0.9; }
+.no-downloads { color: rgba(255, 255, 255, 0.55); }
+.warning { color: var(--npo-text-primary); }
+
+/* Respect spacing scale a bit more */
+main { padding: 0; }
+header.topbar { padding: 0; }
+
+/* Reduce inner content max-width constraints from default stylesheet */
+.tab-content, .status-section, footer { width: 100%; }
+
+/* Center main content similar to npo.nl */
+.tab-content, .status-section, footer > * {
+  max-width: 1280px;
+  margin-inline: auto;
+  padding-inline: var(--npo-spacing-l);
+}
+
+/* Light grey backgrounds for main content panels */
+.tab-content {
+  background: var(--npo-neutral-50);
+  color: var(--npo-text-invert);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  padding: var(--npo-spacing-xl);
+}
+.status-section {
+  background: var(--npo-neutral-50);
+  color: var(--npo-text-invert);
+  padding: var(--npo-spacing-xl);
+}
+
+/* Remove default tabs underline from base CSS if present */
+.tabs { border-bottom-width: 1px; }
+
+/* Default page title/subtitle spacing if used */
+.subtitle { opacity: 0.85; }
+
+@media (max-width: 600px) {
+  main, header { padding: var(--npo-spacing-l); }
+}
+
+/* Accessible focus-visible rings for key controls */
+.primary-nav .tab-button:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--npo-text-highlight);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(255,109,0,0.2);
+}
+
+/* Match npo.nl: subtle rounding for chips, cards, alerts */
+.download-card,
+.alert { border-radius: var(--npo-radius-s); }
+
+/* Ensure consistent radius on tab content areas */
+.tab-content { border-radius: var(--npo-radius-s); }
+/* Reinstate base spacing for text elements overridden by global reset */
+h1, h2, h3, h4, h5, h6 {
+  margin-block-start: var(--npo-spacing-l);
+  margin-block-end: 0;
+  font-weight: var(--npo-heading-font-weight);
+}
+
+p, ul, ol {
+  margin-block-start: var(--npo-spacing-l);
+  margin-block-end: 0;
+}

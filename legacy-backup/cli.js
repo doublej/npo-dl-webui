@@ -48,11 +48,13 @@ async function download(url) {
   console.log(result);
 }
 
-program.command("download")
-  .description("download a single episode")
-  .argument("<url>", "url of the episode")
-  .action(async (url) => {
-    await download(url);
-  });
-
-await program.parseAsync(process.argv);
+download( "http://npo.nl/start/serie/de-week-van-merijn/seizoen-1/de-week-van-merijn/afspelen" )
+//
+// program.command("download")
+//   .description("download a single episode")
+//   .argument("<url>", "url of the episode")
+//   .action(async (url) => {
+//     await download(url);
+//   });
+//
+// await program.parseAsync(process.argv);

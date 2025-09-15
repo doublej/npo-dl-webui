@@ -1,11 +1,17 @@
 {
-  "name": "automation",
+  "name": "npo-downloader",
   "version": "1.0.0",
-  "description": "",
+  "description": "Download videos from NPO Start with web UI and CLI",
   "type": "module",
-  "main": "index.js",
+  "main": "src/server/index.js",
+  "bin": {
+    "npo-dl": "./src/cli/index.js"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "ui": "node src/server/index.js",
+    "start": "node src/server/index.js",
+    "cli": "node src/cli/index.js"
   },
   "engines": {
     "node": ">=18.0.0",

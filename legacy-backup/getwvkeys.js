@@ -133,6 +133,10 @@ class getWvKeys {
     let license_response = await this.post_request(licenseData["challenge"]);
     let decrypt_response = await this.decrypter(license_response);
 
+    // Make sure we return the key string, not the object
+    if (typeof decrypt_response["keys"][0] === 'object') {
+      return decrypt_response["keys"][0]["key"] || "";
+    }
     return decrypt_response["keys"][0];
   }
 }

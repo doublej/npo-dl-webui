@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NPO Downloader</title>
+    <link rel="stylesheet" href="npo-base.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="theme-npo.css">
+</head>
+<body>
+    <div class="container">
+        <header class="topbar" role="banner">
+            <div class="topbar__inner">
+                <a href="#" class="brand" aria-label="NPO home">
+                    <span class="brand__badge">npo</span>
+                    <span class="brand__title">Downloader</span>
+                </a>
+                <nav class="primary-nav" aria-label="Hoofdnavigatie">
+                    <button class="tab-button active" data-tab="episode">Single Episode</button>
+                    <button class="tab-button" data-tab="show">Entire Show</button>
+                    <button class="tab-button" data-tab="season">Season</button>
+                    <button class="tab-button" data-tab="batch">Batch Download</button>
+                    <button class="tab-button" data-tab="settings">Settings</button>
+                </nav>
+                <div id="topbar-status" class="topbar__status" aria-live="polite"></div>
+            </div>
+        </header>
+
+        <main>
+            <!-- Tab Content -->
+            <div class="tab-content">
+                <!-- Single Episode Tab -->
+                <div id="episode-tab" class="tab-pane active">
+                    <form id="episode-form">
+                        <div class="form-group">
+                            <label for="episode-url">Episode URL:</label>
+                            <input
+                                type="url"
+                                id="episode-url"
+                                placeholder="https://npo.nl/start/serie/..."
+                                required
+                            >
+                        </div>
+                        <button type="submit" class="btn-primary">Download Episode</button>
+                    </form>
+                </div>
+
+                <!-- Entire Show Tab -->
+                <div id="show-tab" class="tab-pane">
+                    <form id="show-form">
+                        <div class="form-group">
+                            <label for="show-url">Show URL:</label>
+                            <input
+                                type="url"
+                                id="show-url"
+                                placeholder="https://npo.nl/start/serie/..."
+                                required
+                            >
+                        </div>
+                        <div class="form-group">
+                            <label for="season-count">Number of Seasons (optional):</label>
+                            <input
+                                type="number"
+                                id="season-count"
+                                min="1"
+                                placeholder="All seasons"
+                            >
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="show-reverse">
+                                Start from first season
+                            </label>
+                        </div>
+                        <button type="submit" class="btn-primary">Download Show</button>
+                    </form>
+                </div>
+
+                <!-- Season Tab -->
+                <div id="season-tab" class="tab-pane">
+                    <form id="season-form">
+                        <div class="form-group">
+                            <label for="season-url">Season URL:</label>
+                            <input
+                                type="url"
+                                id="season-url"
+                                placeholder="https://npo.nl/start/serie/.../seizoen-..."
+                                required
+                            >
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="season-reverse">
+                                Start from first episode
+                            </label>
+                        </div>
+                        <button type="submit" class="btn-primary">Download Season</button>
+                    </form>
+                </div>
+
+                <!-- Batch Download Tab -->
+                <div id="batch-tab" class="tab-pane">
+                    <form id="batch-form">
+                        <div class="form-group">
+                            <label for="batch-urls">Episode URLs (one per line):</label>
+                            <textarea
+                                id="batch-urls"
+                                rows="10"
+                                placeholder="https://npo.nl/start/serie/...
+https://npo.nl/start/serie/...
+https://npo.nl/start/serie/..."
+                                required
+                            ></textarea>
+                        </div>
+                        <button type="submit" class="btn-primary">Download All</button>
+                    </form>
+                </div>
+
+                <!-- Settings Tab -->
+                <div id="settings-tab" class="tab-pane">
+                    <form id="settings-form">
+                        <h3>NPO Credentials</h3>
+                        <div class="form-group">
+                            <label for="npo-email">NPO Email:</label>
+                            <input
+                                type="email"
+                                id="npo-email"
+                                placeholder="your-email@example.com"
+                                required
+                            >
+                        </div>
+                        <div class="form-group">
+                            <label for="npo-password">NPO Password:</label>
+                            <input
+                                type="password"
+                                id="npo-password"
+                                placeholder="Your NPO password"
+                                required
+                            >
+                            <small class="help-text">Password is stored locally in .env file</small>
+                        </div>
+
+                        <h3 style="margin-top: 30px;">API Configuration</h3>
+                        <div class="form-group">
+                            <label for="api-key">GetWVKeys API Key:</label>
+                            <input
+                                type="password"
+                                id="api-key"
+                                placeholder="Your API key from getwvkeys.cc"
+                                required
+                            >
+                            <small class="help-text">Get your key from <a href="https://getwvkeys.cc/me" target="_blank">getwvkeys.cc/me</a></small>
+                        </div>
+
+                        <h3 style="margin-top: 30px;">Browser Settings</h3>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="headless-mode">
+                                Run browser in headless mode (no window)
+                            </label>
+                            <small class="help-text">Enable for background downloads, disable for debugging</small>
+                        </div>
+
+                        <div class="button-group">
+                            <button type="submit" class="btn-primary">Save Settings</button>
+                            <button type="button" id="test-connection" class="btn-secondary">Test Connection</button>
+                        </div>
+
+                        <div id="settings-status" class="status-message" style="display: none;"></div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Download Status Section -->
+            <div class="status-section">
+                <h2>Download Status</h2>
+                <div id="downloads-container">
+                    <p class="no-downloads">No active downloads</p>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <div class="page-inner">
+                <p>Downloads are saved to <code>./videos/</code></p>
+                <p class="warning">Make sure .env file is configured with NPO credentials</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

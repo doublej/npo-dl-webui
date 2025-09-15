@@ -5,6 +5,31 @@ import { existsSync, mkdirSync, readFileSync, writeFile } from "node:fs";
 import process from "node:process";
 import { fileExists, getKeyPath, getVideoPath, parseBoolean } from "./utils.js";
 
+// Load environment variables from .env file
+// Check if running in Deno or Node.js
+if (typeof Deno !== 'undefined') {
+  // Deno runtime
+  const { load } = await import("https://deno.land/std@0.224.0/dotenv/mod.ts");
+  await load({ export: true });
+} else {
+  // Node.js runtime - manually load .env
+  try {
+    const envContent = readFileSync('.env', 'utf-8');
+    envContent.split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        const [key, ...valueParts] = trimmed.split('=');
+        if (key) {
+          const value = valueParts.join('=').trim();
+          process.env[key.trim()] = value;
+        }
+      }
+    });
+  } catch (err) {
+    console.warn('.env file not found, using existing environment variables');
+  }
+}
+
 const options = {
   ignoreAttributes: false,
   removeNSPrefix: true,
@@ -35,11 +60,13 @@ if (!existsSync(videoPath)) {
   mkdirSync(videoPath + "/keys");
 }
 
-const browser = await launch({ headless: headless, channel: "chrome" });
+const browser = await launch({ headless: false, channel: "chrome" });
 
 async function npoLogin() {
+  console.log("Starting NPO login...");
   const page = await browser.newPage();
 
+  console.log("Navigating to https://npo.nl/start");
   await page.goto("https://npo.nl/start");
 
   // check that email and password are set
@@ -54,6 +81,7 @@ async function npoLogin() {
     return;
   }
 
+  console.log("Waiting for login button...");
   await page.waitForSelector("div[data-testid='btn-login']");
   await page.click("div[data-testid='btn-login']");
 
@@ -66,11 +94,17 @@ async function npoLogin() {
   await page.click("button[value='login']");
 
   await page.waitForSelector(
-    "button[class='bg-transparent group w-full cursor-pointer']",
+    "button[aria-label=\"Selecteer het profiel van jurrejan\"]",
   );
   await page.click(
-    "button[class='bg-transparent group w-full cursor-pointer']",
+    "button[aria-label=\"Selecteer het profiel van jurrejan\"]",
   );
+  // await page.waitForSelector(
+  //   "button[class='bg-transparent group w-full cursor-pointer']",
+  // );
+  // await page.click(
+  //   "button[class='bg-transparent group w-full cursor-pointer']",
+  // );
 
   await waitResponseSuffix(page, "session");
 
@@ -264,16 +298,37 @@ async function waitResponseSuffix(page, suffix) {
 async function getInformation(url) {
   const page = await browser.newPage();
 
+  console.log(`Navigating to episode: ${url}`);
   await page.goto(url);
+
+  console.log(`Current URL after navigation: ${page.url()}`);
+
+  // Wait a bit to see if there are any redirects or popups
+  await sleep(2000);
+
+  // Check if we need to handle any consent screens or popups
+  try {
+    // Try to find and click any "accept" or "continue" buttons if they exist
+    const acceptButton = await page.$('button[data-testid*="accept"], button[data-testid*="continue"], button:has-text("Accepteren"), button:has-text("Doorgaan")');
+    if (acceptButton) {
+      console.log("Found accept/continue button, clicking...");
+      await acceptButton.click();
+      await sleep(1000);
+    }
+  } catch (e) {
+    // No accept button found, continue
+  }
+
   if (page.url() === "https://npo.nl/start") {
     await page.close();
     console.log(`Error wrong episode ID ${url}`);
     return null;
   }
 
+  console.log("Waiting for video player...");
   // const iframe = await page.waitForSelector(`#iframe-${id}`);
   await page.waitForSelector(`.bmpui-image`);
-  const filename = await generateFileName(page);
+  const filename = "filename"//await generateFileName(page);
 
   console.log(`${filename} - ${url}`);
   const keyPath = getKeyPath(filename);
@@ -411,4 +466,12 @@ const sleep = (milliseconds) => {
   return new Promise((success) => setTimeout(success, milliseconds));
 };
 
-export { getEpisode, getInformation, npoLogin };
+export {
+  getEpisode,
+  getEpisodes,
+  getInformation,
+  npoLogin,
+  getAllEpisodesFromShow,
+  getAllEpisodesFromSeason,
+  getEpisodesInOrder
+};
