@@ -1,8 +1,96 @@
 // API base URL
 const API_BASE = 'http://localhost:3000/api';
+const WS_URL = 'ws://localhost:3000';
 
 // Active downloads tracking
 const activeDownloads = new Map();
+
+// WebSocket connection
+let ws = null;
+let wsReconnectTimer = null;
+
+// Initialize WebSocket connection
+function initWebSocket() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        return; // Already connected
+    }
+
+    console.log('Connecting to WebSocket...');
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => {
+        console.log('WebSocket connected');
+        clearTimeout(wsReconnectTimer);
+    };
+
+    ws.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            handleWebSocketMessage(data);
+        } catch (error) {
+            console.error('Failed to parse WebSocket message:', error);
+        }
+    };
+
+    ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+    };
+
+    ws.onclose = () => {
+        console.log('WebSocket disconnected');
+        // Attempt to reconnect after 3 seconds
+        wsReconnectTimer = setTimeout(() => {
+            console.log('Attempting to reconnect WebSocket...');
+            initWebSocket();
+        }, 3000);
+    };
+}
+
+// Handle WebSocket messages
+function handleWebSocketMessage(data) {
+    switch (data.type) {
+        case 'connected':
+            console.log('WebSocket:', data.message);
+            break;
+
+        case 'download_progress':
+            updateDownloadProgress(data.downloadId, data.progress);
+            break;
+
+        case 'download_status':
+            updateDownloadStatus(data.downloadId, data.status, data);
+            break;
+
+        default:
+            console.log('Unknown WebSocket message type:', data.type);
+    }
+}
+
+// Update download progress
+function updateDownloadProgress(downloadId, progress) {
+    const download = activeDownloads.get(downloadId);
+    if (download) {
+        activeDownloads.set(downloadId, { ...download, progress });
+        updateDownloadDisplay();
+    }
+}
+
+// Update download status
+function updateDownloadStatus(downloadId, status, data) {
+    const download = activeDownloads.get(downloadId);
+    if (download) {
+        activeDownloads.set(downloadId, { ...download, status, ...data });
+        updateDownloadDisplay();
+
+        // Remove completed/errored downloads after 10 seconds
+        if (status === 'completed' || status === 'error') {
+            setTimeout(() => {
+                activeDownloads.delete(downloadId);
+                updateDownloadDisplay();
+            }, 10000);
+        }
+    }
+}
 
 // Tab switching
 document.querySelectorAll('.tab-button').forEach(button => {
@@ -20,6 +108,11 @@ document.querySelectorAll('.tab-button').forEach(button => {
             pane.classList.remove('active');
         });
         document.getElementById(`${tabName}-tab`).classList.add('active');
+
+        // If navigating to downloads tab, load downloaded episodes
+        if (tabName === 'downloads') {
+            loadDownloadedList();
+        }
     });
 });
 
@@ -94,30 +187,28 @@ function trackDownload(downloadId) {
         updateDownloadDisplay();
     }
 
-    // Poll for status updates
-    const pollInterval = setInterval(async () => {
-        try {
-            const response = await fetch(`${API_BASE}/status?id=${downloadId}`);
-            const status = await response.json();
+    // With WebSocket, we don't need polling anymore
+    // The server will push updates through WebSocket
+    // Just make sure WebSocket is connected
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        initWebSocket();
+    }
 
+    // Optionally, fetch initial status once
+    fetch(`${API_BASE}/status?id=${downloadId}`)
+        .then(response => response.json())
+        .then(status => {
             activeDownloads.set(downloadId, { id: downloadId, ...status });
             updateDownloadDisplay();
 
-            // Stop polling if download is complete or errored
-            if (status.status === 'completed' || status.status === 'error') {
-                clearInterval(pollInterval);
-
-                // Remove from active downloads after 10 seconds
-                setTimeout(() => {
-                    activeDownloads.delete(downloadId);
-                    updateDownloadDisplay();
-                }, 10000);
+            // Handle profile selection needed
+            if (status.status === 'needs_profile') {
+                handleProfileNeeded(downloadId, status);
             }
-        } catch (error) {
-            console.error('Failed to fetch status:', error);
-            clearInterval(pollInterval);
-        }
-    }, 1000);
+        })
+        .catch(error => {
+            console.error('Failed to fetch initial status:', error);
+        });
 }
 
 // Update download display
@@ -136,16 +227,148 @@ function updateDownloadDisplay() {
     container.innerHTML = html;
 }
 
+// Handle profile selection needed
+async function handleProfileNeeded(downloadId, status) {
+    // Remove from active downloads first
+    activeDownloads.delete(downloadId);
+    updateDownloadDisplay();
+
+    // Show modal with profile selection
+    showProfileModal(status.profiles, status.url);
+}
+
+// Show profile selection modal
+function showProfileModal(profiles, originalUrl) {
+    const modal = document.getElementById('profile-modal');
+    const modalButtons = document.getElementById('modal-profile-buttons');
+
+    // Clear existing buttons
+    modalButtons.innerHTML = '';
+
+    // Get color classes
+    const colorClasses = ['blue', 'red', 'green', 'yellow', 'purple'];
+
+    // Create profile cards
+    profiles.forEach((profile, index) => {
+        const card = document.createElement('div');
+        card.className = 'profile-card';
+
+        // Extract color from testId if available
+        let colorClass = colorClasses[index % colorClasses.length];
+        if (profile.testId && profile.testId.includes('profile-color-bg-profile-')) {
+            const match = profile.testId.match(/profile-color-bg-profile-(\w+)/);
+            if (match) {
+                colorClass = match[1];
+            }
+        }
+
+        card.innerHTML = `
+            <div class="profile-name">${profile.name}</div>
+            <div class="profile-color profile-color-${colorClass}"></div>
+        `;
+
+        card.addEventListener('click', async () => {
+            await selectProfileAndRetry(profile.name, originalUrl);
+            modal.style.display = 'none';
+        });
+
+        modalButtons.appendChild(card);
+    });
+
+    // Show modal
+    modal.style.display = 'flex';
+
+    // Cancel button handler
+    document.getElementById('modal-cancel').onclick = () => {
+        modal.style.display = 'none';
+    };
+
+    // Close on background click
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            modal.style.display = 'none';
+        }
+    };
+}
+
+// Select profile and retry download
+async function selectProfileAndRetry(profileName, originalUrl) {
+    try {
+        // First, set the profile in env
+        const response = await fetch(`${API_BASE}/profiles/set`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ profile: profileName })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showSuccess(`Profile set to: ${profileName}. Retrying download...`);
+
+            // Update the displayed profile in settings
+            document.getElementById('current-profile').textContent = profileName;
+
+            // If we have the original URL, retry the download
+            if (originalUrl) {
+                // Determine the type of download from the URL
+                if (originalUrl.includes('/afspelen')) {
+                    // Single episode
+                    await startDownload('/download/episode', { url: originalUrl, profile: profileName });
+                } else {
+                    // For now, just retry as episode
+                    await startDownload('/download/episode', { url: originalUrl, profile: profileName });
+                }
+            }
+        } else {
+            showError(result.error || 'Failed to set profile');
+        }
+    } catch (error) {
+        showError('Failed to set profile: ' + error.message);
+    }
+}
+
 // Create download card HTML
 function createDownloadCard(download) {
     let statusClass = 'status-' + download.status;
     let statusText = download.status;
     let progressInfo = '';
+    let progressBar = '';
 
     if (download.status === 'processing') {
         statusText = 'Processing...';
+    } else if (download.status === 'needs_profile') {
+        statusText = 'Profile selection required';
+        progressInfo = `<p>Please select a profile in Settings</p>`;
     } else if (download.status === 'downloading') {
         statusText = 'Downloading...';
+
+        // Add progress bar if we have progress data
+        if (download.progress) {
+            const progress = download.progress;
+            const percentage = progress.percentage || 0;
+            const speed = progress.speed || '';
+            const eta = progress.eta || '';
+            const stage = progress.stage || 'downloading';
+
+            statusText = stage === 'merging' ? 'Merging files...' : 'Downloading...';
+
+            progressBar = `
+                <div class="progress-bar-container">
+                    <div class="progress-bar">
+                        <div class="progress-bar-fill" style="width: ${percentage}%"></div>
+                    </div>
+                    <div class="progress-details">
+                        <span class="progress-percentage">${percentage.toFixed(1)}%</span>
+                        ${speed ? `<span class="progress-speed">${speed}</span>` : ''}
+                        ${eta && eta !== '00:00' ? `<span class="progress-eta">ETA: ${eta}</span>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
         if (download.totalEpisodes) {
             progressInfo = `<div class="progress-info">Episode ${download.currentEpisode || 1} of ${download.totalEpisodes}</div>`;
         } else if (download.totalUrls) {
@@ -155,6 +378,13 @@ function createDownloadCard(download) {
         }
     } else if (download.status === 'completed') {
         statusText = 'Completed';
+        progressBar = `
+            <div class="progress-bar-container">
+                <div class="progress-bar">
+                    <div class="progress-bar-fill completed" style="width: 100%"></div>
+                </div>
+            </div>
+        `;
         if (download.totalEpisodes) {
             progressInfo = `<div class="progress-info">${download.totalEpisodes} episodes downloaded</div>`;
         } else if (download.totalUrls) {
@@ -169,6 +399,7 @@ function createDownloadCard(download) {
         <div class="download-card ${statusClass}">
             <div class="download-status">${statusText}</div>
             ${progressInfo}
+            ${progressBar}
         </div>
     `;
 }
@@ -273,6 +504,76 @@ document.getElementById('test-connection').addEventListener('click', async () =>
     }
 });
 
+// Profile selection button
+document.getElementById('select-profile').addEventListener('click', async () => {
+    const profileList = document.getElementById('profile-list');
+    const profileButtons = document.getElementById('profile-buttons');
+
+    // Toggle profile list visibility
+    if (profileList.style.display === 'none') {
+        // Fetch available profiles
+        try {
+            showSettingsStatus('info', 'Fetching available profiles...');
+            const response = await fetch(`${API_BASE}/profiles`);
+            const result = await response.json();
+
+            if (result.success && result.profiles && result.profiles.length > 0) {
+                // Clear existing buttons
+                profileButtons.innerHTML = '';
+
+                // Create profile buttons
+                result.profiles.forEach(profile => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'btn-secondary';
+                    button.textContent = profile.name;
+                    button.style.padding = '5px 15px';
+                    button.addEventListener('click', async () => {
+                        await selectProfile(profile.name);
+                    });
+                    profileButtons.appendChild(button);
+                });
+
+                profileList.style.display = 'block';
+                showSettingsStatus('success', `Found ${result.profiles.length} profile(s)`);
+            } else if (result.success && (!result.profiles || result.profiles.length === 0)) {
+                showSettingsStatus('info', 'No profiles found. Login directly without profile selection.');
+            } else {
+                showSettingsStatus('error', 'Failed to fetch profiles');
+            }
+        } catch (error) {
+            showSettingsStatus('error', 'Failed to fetch profiles: ' + error.message);
+        }
+    } else {
+        profileList.style.display = 'none';
+    }
+});
+
+// Select a profile
+async function selectProfile(profileName) {
+    try {
+        const response = await fetch(`${API_BASE}/profiles/set`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ profile: profileName })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            document.getElementById('current-profile').textContent = profileName;
+            document.getElementById('profile-list').style.display = 'none';
+            showSettingsStatus('success', `Profile set to: ${profileName}`);
+        } else {
+            showSettingsStatus('error', result.error || 'Failed to set profile');
+        }
+    } catch (error) {
+        showSettingsStatus('error', 'Failed to set profile: ' + error.message);
+    }
+}
+
 // Load current configuration
 async function loadConfig() {
     try {
@@ -295,6 +596,13 @@ async function loadConfig() {
         }
 
         document.getElementById('headless-mode').checked = config.HEADLESS;
+
+        // Update profile display
+        if (config.NPO_PROFILE) {
+            document.getElementById('current-profile').textContent = config.NPO_PROFILE;
+        } else {
+            document.getElementById('current-profile').textContent = 'Not selected';
+        }
 
         // Update configuration status
         updateConfigStatus(config);
@@ -367,5 +675,54 @@ function showSettingsStatus(type, message) {
 }
 
 // Initialize
+initWebSocket();
 checkExistingDownloads();
 loadConfig();
+
+// Load list of downloaded episodes
+async function loadDownloadedList() {
+    const container = document.getElementById('downloaded-container');
+    try {
+        const res = await fetch(`${API_BASE}/downloads`);
+        const data = await res.json();
+        const files = Array.isArray(data.files) ? data.files : [];
+        if (files.length === 0) {
+            container.innerHTML = '<p class="no-downloads">No downloads found</p>';
+            return;
+        }
+        const items = files.map(f => {
+            const date = new Date(f.mtime);
+            const sizeMB = (f.size / (1024*1024)).toFixed(1);
+            const safeName = encodeURIComponent(f.name);
+            return `<div class="download-card status-completed" data-filename="${safeName}">
+                        <div class="download-status">${f.name}</div>
+                        <div class="progress-info">${sizeMB} MB • ${date.toLocaleString()}</div>
+                    </div>`;
+        }).join('');
+        container.innerHTML = items;
+
+        // Bind click handlers to play videos
+        container.querySelectorAll('.download-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const filename = card.getAttribute('data-filename');
+                playVideo(filename, card.querySelector('.download-status').textContent);
+            });
+        });
+    } catch (e) {
+        container.innerHTML = '<p class="no-downloads">Failed to load downloads</p>';
+    }
+}
+
+function playVideo(encodedFilename, displayName) {
+    const video = document.getElementById('video-player');
+    const nowPlaying = document.getElementById('now-playing');
+    const src = `/videos/${encodedFilename}`;
+    // If a source element exists, reuse; otherwise set src directly on video
+    video.src = src;
+    video.load();
+    video.play().catch(() => {/* autoplay might be blocked; ignore */});
+    if (displayName) {
+        nowPlaying.style.display = 'block';
+        nowPlaying.textContent = `Now playing: ${displayName}`;
+    }
+}

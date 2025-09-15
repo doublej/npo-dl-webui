@@ -1,12 +1,13 @@
 import { createServer } from 'node:http';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, readdir, stat } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
-import { getEpisode, getAllEpisodesFromShow, getAllEpisodesFromSeason, getEpisodesInOrder } from '../providers/npo/index.js';
+import { getEpisode, getAllEpisodesFromShow, getAllEpisodesFromSeason, getEpisodesInOrder, npoLogin, getCachedProfiles } from '../providers/npo/index.js';
 import { downloadFromID } from '../services/download/downloader.js';
 import { initializeEnv, getConfig } from '../config/env.js';
+import { initWebSocketServer, broadcastProgress, broadcastStatus } from './websocket.js';
 import process from 'node:process';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -18,6 +19,7 @@ await initializeEnv();
 const config = getConfig();
 const PORT = config.PORT;
 const PUBLIC_DIR = join(__dirname, '../../public');
+const VIDEOS_DIR = join(__dirname, '../../videos/final');
 
 // Store active downloads
 const activeDownloads = new Map();
@@ -82,28 +84,65 @@ async function serveStatic(req, res) {
 // API handlers
 async function handleDownloadEpisode(req, res) {
   try {
-    const { url } = await parseBody(req);
+    const { url, profile } = await parseBody(req);
+    console.log("\n=== DOWNLOAD EPISODE REQUEST ===");
+    console.log("URL:", url);
+    console.log("Profile:", profile || 'NONE');
+
     if (!url) {
       return sendError(res, 'URL is required');
     }
 
     const downloadId = Date.now().toString();
+    console.log("Download ID:", downloadId);
     activeDownloads.set(downloadId, { status: 'processing', url });
 
     // Start download asynchronously
     (async () => {
       try {
-        const information = await getEpisode(url);
+        console.log("Calling getEpisode...");
+        const information = await getEpisode(url, profile);
+        console.log("getEpisode returned:", information ? 'data' : 'null');
+
+        // Check if profile selection is needed
+        if (information && information.needsProfileSelection) {
+          console.log("⚠️ Profile selection needed - updating status");
+          activeDownloads.set(downloadId, {
+            status: 'needs_profile',
+            profiles: information.profiles,
+            message: information.message,
+            url
+          });
+          return;
+        }
+
         if (!information) {
           activeDownloads.set(downloadId, { status: 'error', error: 'Failed to get episode information' });
+          broadcastStatus(downloadId, 'error', { error: 'Failed to get episode information' });
           return;
         }
 
         activeDownloads.set(downloadId, { status: 'downloading', filename: information.filename });
-        const result = await downloadFromID(information);
+        broadcastStatus(downloadId, 'downloading', { filename: information.filename });
+
+        // Create progress callback for WebSocket updates
+        const progressCallback = (progress) => {
+          console.log(`Progress for ${downloadId}:`, progress);
+          broadcastProgress(downloadId, progress);
+
+          // Update active downloads with progress
+          const current = activeDownloads.get(downloadId);
+          if (current) {
+            activeDownloads.set(downloadId, { ...current, progress });
+          }
+        };
+
+        const result = await downloadFromID(information, progressCallback);
         activeDownloads.set(downloadId, { status: 'completed', result, filename: information.filename });
+        broadcastStatus(downloadId, 'completed', { filename: information.filename, result });
       } catch (error) {
         activeDownloads.set(downloadId, { status: 'error', error: error.message });
+        broadcastStatus(downloadId, 'error', { error: error.message });
       }
     })();
 
@@ -249,6 +288,30 @@ async function handleStatus(req, res) {
   }
 }
 
+// List downloaded episodes (files in videos/final)
+async function handleListDownloads(req, res) {
+  try {
+    const entries = await readdir(VIDEOS_DIR, { withFileTypes: true });
+    const files = [];
+    for (const entry of entries) {
+      if (entry.isFile() && (entry.name.endsWith('.mkv') || entry.name.endsWith('.mp4'))) {
+        const fullPath = join(VIDEOS_DIR, entry.name);
+        const info = await stat(fullPath);
+        files.push({
+          name: entry.name,
+          size: info.size,
+          mtime: info.mtimeMs
+        });
+      }
+    }
+    // Sort by modified time desc
+    files.sort((a, b) => b.mtime - a.mtime);
+    sendJSON(res, { files });
+  } catch (error) {
+    sendError(res, error.message, 500);
+  }
+}
+
 // Load environment variables from .env file (for settings management)
 function loadEnvFile() {
   const envPath = join(__dirname, '../../.env');
@@ -297,6 +360,7 @@ async function handleGetConfig(req, res) {
     const config = {
       NPO_EMAIL: envVars.NPO_EMAIL || '',
       NPO_PASSW: envVars.NPO_PASSW ? '********' : '',
+      NPO_PROFILE: envVars.NPO_PROFILE || '',
       GETWVKEYS_API_KEY: envVars.GETWVKEYS_API_KEY ? '********' : '',
       HEADLESS: envVars.HEADLESS === 'true',
       hasPassword: !!envVars.NPO_PASSW,
@@ -371,6 +435,82 @@ async function handleTestConnection(req, res) {
   }
 }
 
+// Get available NPO profiles
+async function handleGetProfiles(req, res) {
+  console.log("\n=== GET PROFILES REQUEST ===");
+  try {
+    // First try to get cached profiles
+    console.log("Checking for cached profiles...");
+    const cachedProfiles = await getCachedProfiles();
+
+    if (cachedProfiles && cachedProfiles.length > 0) {
+      console.log(`✓ Found ${cachedProfiles.length} cached profiles`);
+      const envVars = loadEnvFile();
+      sendJSON(res, {
+        success: true,
+        profiles: cachedProfiles,
+        selectedProfile: envVars.NPO_PROFILE || null,
+        fromCache: true
+      });
+      return;
+    }
+
+    console.log("No cached profiles found, fetching from NPO...");
+    // If no cached profiles, try to fetch them
+    const loginResult = await npoLogin();
+
+    if (loginResult && loginResult.needsProfileSelection) {
+      sendJSON(res, {
+        success: true,
+        profiles: loginResult.profiles,
+        message: loginResult.message,
+        fromCache: false
+      });
+    } else if (loginResult && loginResult.success) {
+      sendJSON(res, {
+        success: true,
+        profiles: loginResult.profiles || [],
+        selectedProfile: loginResult.selectedProfile,
+        fromCache: false
+      });
+    } else {
+      sendError(res, 'Failed to retrieve profiles', 500);
+    }
+  } catch (error) {
+    sendError(res, error.message, 500);
+  }
+}
+
+// Set selected NPO profile
+async function handleSetProfile(req, res) {
+  console.log("\n=== SET PROFILE REQUEST ===");
+  try {
+    const { profile } = await parseBody(req);
+    console.log("Profile to set:", profile);
+
+    if (!profile) {
+      return sendError(res, 'Profile name is required');
+    }
+
+    // Update the .env file with the selected profile
+    console.log("Loading current env file...");
+    const currentEnv = loadEnvFile();
+    currentEnv.NPO_PROFILE = profile;
+
+    console.log("Saving profile to .env file...");
+    await saveEnvFile(currentEnv);
+    console.log(`✓ Profile "${profile}" saved to .env`);
+
+    sendJSON(res, {
+      success: true,
+      message: `Profile set to: ${profile}`
+    });
+  } catch (error) {
+    console.error("✗ Error setting profile:", error.message);
+    sendError(res, error.message, 500);
+  }
+}
+
 // Main server
 const server = createServer(async (req, res) => {
   // Handle CORS preflight
@@ -397,14 +537,66 @@ const server = createServer(async (req, res) => {
     await handleBatchDownload(req, res);
   } else if (path === '/api/status' && req.method === 'GET') {
     await handleStatus(req, res);
+  } else if (path === '/api/downloads' && req.method === 'GET') {
+    await handleListDownloads(req, res);
   } else if (path === '/api/config' && req.method === 'GET') {
     await handleGetConfig(req, res);
   } else if (path === '/api/config' && req.method === 'POST') {
     await handleUpdateConfig(req, res);
   } else if (path === '/api/test-connection' && req.method === 'POST') {
     await handleTestConnection(req, res);
+  } else if (path === '/api/profiles' && req.method === 'GET') {
+    await handleGetProfiles(req, res);
+  } else if (path === '/api/profiles/set' && req.method === 'POST') {
+    await handleSetProfile(req, res);
   } else if (path.startsWith('/api/')) {
     sendError(res, 'Endpoint not found', 404);
+  } else if (path.startsWith('/videos/') && req.method === 'GET') {
+    // Stream downloaded video files with Range support
+    try {
+      const filename = decodeURIComponent(path.replace('/videos/', ''));
+      // Basic sanitization to avoid path traversal
+      if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+        return sendError(res, 'Invalid filename', 400);
+      }
+
+      const filePath = join(VIDEOS_DIR, filename);
+      const ext = extname(filePath).toLowerCase();
+      const contentType = ext === '.mp4' ? 'video/mp4' : (ext === '.mkv' ? 'video/x-matroska' : 'application/octet-stream');
+
+      const fs = await import('node:fs');
+      const stats = await fs.promises.stat(filePath);
+
+      const range = req.headers.range;
+      if (range) {
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : stats.size - 1;
+        if (isNaN(start) || isNaN(end) || start > end || end >= stats.size) {
+          res.writeHead(416, {
+            'Content-Range': `bytes */${stats.size}`
+          });
+          return res.end();
+        }
+        const chunkSize = end - start + 1;
+        res.writeHead(206, {
+          'Content-Range': `bytes ${start}-${end}/${stats.size}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': chunkSize,
+          'Content-Type': contentType,
+        });
+        fs.createReadStream(filePath, { start, end }).pipe(res);
+      } else {
+        res.writeHead(200, {
+          'Content-Length': stats.size,
+          'Content-Type': contentType,
+          'Accept-Ranges': 'bytes',
+        });
+        fs.createReadStream(filePath).pipe(res);
+      }
+    } catch (error) {
+      sendError(res, 'File not found', 404);
+    }
   } else {
     await serveStatic(req, res);
   }
@@ -413,4 +605,8 @@ const server = createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`NPO Downloader Web UI running at http://localhost:${PORT}`);
   console.log(`Downloads will be saved to: ./videos/`);
+
+  // Initialize WebSocket server
+  initWebSocketServer(server);
+  console.log(`WebSocket server running on ws://localhost:${PORT}`);
 });

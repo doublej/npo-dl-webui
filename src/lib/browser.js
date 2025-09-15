@@ -52,6 +52,19 @@ export async function createPage() {
   const browser = await getBrowser();
   const page = await browser.newPage();
 
+  // Clear all cookies to ensure clean state
+  console.log('Clearing all browser cookies...');
+  const client = await page.target().createCDPSession();
+  await client.send('Network.clearBrowserCookies');
+  await client.send('Network.clearBrowserCache');
+  console.log('✓ Browser cookies and cache cleared');
+
+  // Also clear any localStorage and sessionStorage
+  await page.evaluateOnNewDocument(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
   // Set common page settings
   await page.setViewport({ width: 1280, height: 720 });
 

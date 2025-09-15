@@ -10,7 +10,7 @@ import {
 
 const videoPaths = getVideoPaths();
 
-async function downloadFromID(information) {
+async function downloadFromID(information, progressCallback = null) {
     if (information === null) {
         return null;
     }
@@ -22,12 +22,20 @@ async function downloadFromID(information) {
     const combinedFileName = getFinalVideoPath(filename);
     if (await fileExists(combinedFileName)) {
         console.log("File already downloaded");
+        if (progressCallback) {
+            progressCallback({
+                percentage: 100,
+                stage: 'completed',
+                message: 'File already exists'
+            });
+        }
         return combinedFileName;
     }
 
     console.log(information);
 
-    filename = await downloadMpd(information.mpdUrl.toString(), filename);
+    // Download video and audio with progress
+    filename = await downloadMpd(information.mpdUrl.toString(), filename, progressCallback);
 
     console.log(filename);
 
@@ -37,10 +45,11 @@ async function downloadFromID(information) {
         key = information.wideVineKeyResponse.toString();
     }
 
-    return await decryptFiles(filename, key);
+    // Decrypt and merge files with progress
+    return await decryptFiles(filename, key, progressCallback);
 }
 
-async function downloadMpd(mpdUrl, filename) {
+async function downloadMpd(mpdUrl, filename, progressCallback = null) {
     const filenameFormat = "encrypted#" + filename + ".%(ext)s";
     const args = [
         "--allow-u",
@@ -54,10 +63,10 @@ async function downloadMpd(mpdUrl, filename) {
         filenameFormat,
         mpdUrl,
     ];
-    return runCommand("yt-dlp", args, filename);
+    return runCommand("yt-dlp", args, filename, progressCallback);
 }
 
-async function decryptFiles(filename, key) {
+async function decryptFiles(filename, key, progressCallback = null) {
     //console.log(videoPath);
     let encryptedFilename = "encrypted#" + filename;
 
@@ -72,6 +81,7 @@ async function decryptFiles(filename, key) {
         mp4File,
         m4aFile,
         key,
+        progressCallback
     );
 
     await sleep(100);
@@ -84,7 +94,7 @@ async function decryptFiles(filename, key) {
     return resultFileName;
 }
 
-async function combineVideoAndAudio(filename, video, audio, key) {
+async function combineVideoAndAudio(filename, video, audio, key, progressCallback = null) {
     const combinedFileName = getFinalVideoPath(filename);
     let args = ["-i", video, "-i", audio, "-c", "copy", combinedFileName];
     if (key != null) {
@@ -102,7 +112,7 @@ async function combineVideoAndAudio(filename, video, audio, key) {
             combinedFileName,
         ];
     }
-    return runCommand("ffmpeg", args, combinedFileName);
+    return runCommand("ffmpeg", args, combinedFileName, progressCallback);
 }
 
 export { downloadFromID };

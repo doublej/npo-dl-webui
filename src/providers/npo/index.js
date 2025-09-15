@@ -2,7 +2,7 @@
 // This module provides all NPO-related functionality
 
 // Re-export login functionality
-export { npoLogin } from './login.js';
+export { npoLogin, getCachedProfiles } from './login.js';
 
 // Re-export episode functionality
 export {

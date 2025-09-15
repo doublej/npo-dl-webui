@@ -21,6 +21,7 @@
                     <button class="tab-button" data-tab="show">Entire Show</button>
                     <button class="tab-button" data-tab="season">Season</button>
                     <button class="tab-button" data-tab="batch">Batch Download</button>
+                    <button class="tab-button" data-tab="downloads">Downloads</button>
                     <button class="tab-button" data-tab="settings">Settings</button>
                 </nav>
                 <div id="topbar-status" class="topbar__status" aria-live="polite"></div>
@@ -141,6 +142,19 @@ https://npo.nl/start/serie/..."
                             <small class="help-text">Password is stored locally in .env file</small>
                         </div>
 
+                        <h3 style="margin-top: 30px;">NPO Profile</h3>
+                        <div class="form-group">
+                            <label for="npo-profile">Selected Profile:</label>
+                            <div id="profile-selection" style="display: flex; gap: 10px; align-items: center;">
+                                <span id="current-profile" style="font-weight: bold;">Not selected</span>
+                                <button type="button" id="select-profile" class="btn-secondary">Select Profile</button>
+                            </div>
+                            <div id="profile-list" style="display: none; margin-top: 10px;">
+                                <small class="help-text">Available profiles:</small>
+                                <div id="profile-buttons" style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;"></div>
+                            </div>
+                        </div>
+
                         <h3 style="margin-top: 30px;">API Configuration</h3>
                         <div class="form-group">
                             <label for="api-key">GetWVKeys API Key:</label>
@@ -170,6 +184,18 @@ https://npo.nl/start/serie/..."
                         <div id="settings-status" class="status-message" style="display: none;"></div>
                     </form>
                 </div>
+
+                <!-- Downloads Tab -->
+                <div id="downloads-tab" class="tab-pane">
+                    <h3>Downloaded Episodes</h3>
+                    <div id="downloaded-container">
+                        <p class="no-downloads">No downloads found</p>
+                    </div>
+                    <div id="player-section" style="margin-top: 1rem;">
+                        <video id="video-player" controls style="width:100%; max-width: 100%; background:#000; border-radius: 8px;" crossorigin="anonymous"></video>
+                        <div id="now-playing" class="help-text" style="margin-top: 8px; display:none;"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- Download Status Section -->
@@ -182,11 +208,18 @@ https://npo.nl/start/serie/..."
         </main>
 
         <footer>
-            <div class="page-inner">
-                <p>Downloads are saved to <code>./videos/</code></p>
-                <p class="warning">Make sure .env file is configured with NPO credentials</p>
-            </div>
+            footer
         </footer>
+    </div>
+
+    <!-- Profile Selection Modal -->
+    <div id="profile-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2>Select NPO Profile</h2>
+            <p>Please select a profile to continue with the download:</p>
+            <div id="modal-profile-buttons" class="profile-grid"></div>
+            <button id="modal-cancel" class="btn-secondary" style="margin-top: 20px;">Cancel</button>
+        </div>
     </div>
 
     <script src="app.js"></script>

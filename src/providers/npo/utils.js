@@ -38,38 +38,68 @@ export async function waitResponseSuffix(page, suffix) {
  * @returns {Promise<string>}
  */
 export async function generateFileName(page) {
-  const rawSerie = page.$eval(
-    ".font-bold.font-npo-scandia.leading-130.text-30 .line-clamp-2",
-    (el) => el["innerText"],
-  );
-  const rawTitle = page.$eval(
-    "h2.font-bold.font-npo-scandia.leading-130.text-22",
-    (el) => el["innerText"],
-  );
-  const rawNumber = page.$eval(
-    ".mb-24 .flex.items-center .leading-130.text-13 .line-clamp-1",
-    (el) => el["innerText"],
-  );
-  const rawSeason = page.$eval(
-    ".bg-card-3.font-bold.font-npo-scandia.inline-flex.items-center",
-    (el) => el["innerText"],
-  );
+  // Ensure the player info block is present
+  try {
+    await page.waitForSelector('[data-testid="player-info"]', { timeout: 10000 });
+  } catch (_) {
+    // Fall back silently; we'll still try to read whatever we can
+  }
 
-  let filename = "";
+  // Extract robust metadata using stable data-testid hooks
+  const info = await page.evaluate(() => {
+    const scope = document.querySelector('[data-testid="player-info"]');
 
-  filename += (await rawSerie) + " - ";
-  // remove word "Seizoen" from rawSeason
-  const seasonNumber = parseInt((await rawSeason).replace("Seizoen ", ""));
-  const episodeNumber = parseInt(
-    (await rawNumber).replace("Afl. ", "").split("•")[0],
-  );
-  // add season and episode number to filename formatted as SxxExx
-  filename += "S" + seasonNumber.toString().padStart(2, "0") + "E" +
-    episodeNumber.toString().padStart(2, "0") + " - ";
-  filename += await rawTitle;
+    const title = scope?.querySelector('[data-testid="txt-header"]')?.textContent?.trim() ?? null;
 
-  // remove illegal characters from filename
-  filename = filename.replace(/[/\\?%*:|"<>]/g, "#");
+    const metaText = scope?.querySelector('[data-testid="txt-metadata"]')?.innerText?.trim() ?? "";
+    const parts = metaText.split("•").map(s => s.trim());
 
+    let episodeNumber = null;
+    const m = /Afl\.\s*(\d+)/i.exec(parts[0] || "");
+    if (m) episodeNumber = Number(m[1]);
+
+    return { title, episodeNumber };
+  });
+
+  // Build filename with available data
+  let filename = '';
+  if (info?.episodeNumber != null && !Number.isNaN(info.episodeNumber)) {
+    filename += `E${String(info.episodeNumber).padStart(2, '0')} - `;
+  }
+  filename += (info?.title || 'episode');
+
+  // Sanitize filename
+  filename = filename.replace(/[\/\\?%*:|"<>]/g, '#');
   return filename;
+}
+
+/**
+ * Extracts episode details from the player info block using stable data-testid selectors.
+ * @param {Page} page
+ * @returns {Promise<{title: string|null, episodeNumber: number|null, airing: string|null, description: string|null}>}
+ */
+export async function extractPlayerInfo(page) {
+  await page.waitForSelector('[data-testid="player-info"]');
+  const result = await page.evaluate(() => {
+    const scope = document.querySelector('[data-testid="player-info"]');
+
+    const title = scope?.querySelector('[data-testid="txt-header"]')?.textContent?.trim() ?? null;
+
+    const metaText = scope?.querySelector('[data-testid="txt-metadata"]')?.innerText?.trim() ?? "";
+    const parts = metaText.split("•").map(s => s.trim());
+
+    let episodeNumber = null;
+    const m = /Afl\.\s*(\d+)/i.exec(parts[0] || "");
+    if (m) episodeNumber = Number(m[1]);
+
+    const airing = parts[1] || null;
+
+    let description = scope?.querySelector('p[data-testid="txt-synopsis"]')?.innerText?.trim() ?? null;
+    if (description) {
+      description = description.replace(/\s*Lees meer\s*$/i, '').trim();
+    }
+
+    return { title, episodeNumber, airing, description };
+  });
+  return result;
 }

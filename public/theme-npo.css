@@ -23,7 +23,7 @@ html, body { width: 100%; min-height: 100%; }
   width: 100%;
   max-width: none;
   margin: 0;
-  background: var(--npo-neutral-75); /* lighter app background */
+
   border: none;
 }
 
@@ -170,16 +170,24 @@ textarea:focus {
 .status-section { border-top-color: var(--npo-neutral-200); }
 
 .download-card {
-  background: #ffffff;
-  border-color: var(--npo-neutral-300);
+  background: transparent; /* streamlined: remove card chrome */
+  border: none; /* no full border */
   color: var(--npo-text-invert);
+  border-radius: 0;
+  box-shadow: none;
+  padding: var(--npo-spacing-s) var(--npo-spacing-m);
+  position: relative;
+  border-left: 3px solid transparent; /* subtle status accent */
+  border-bottom: 1px solid var(--npo-neutral-200); /* list divider */
+  margin-bottom: 2px;
 }
-.download-card.status-processing { background: var(--npo-neutral-100); }
-.download-card.status-downloading { background: var(--npo-neutral-75); }
-.download-card.status-completed { background: #ffffff; }
-.download-card.status-error { border-color: var(--npo-surface-highlight); }
+.download-card.status-processing { border-left-color: #93c5fd; }
+.download-card.status-downloading { border-left-color: #f59e0b; }
+.download-card.status-completed { border-left-color: #22c55e; }
+.download-card.status-error { border-left-color: #ef4444; }
 
-.progress-info { color: rgba(255, 255, 255, 0.65); }
+.download-status { font-weight: 600; margin-bottom: 2px; }
+.progress-info { color: #6b7280; font-size: 0.9rem; }
 .error-info { color: #ffb4a6; }
 
 /* Alerts */
@@ -187,10 +195,33 @@ textarea:focus {
 .alert-success { background: rgba(255,255,255,.95); color: #0b0c0c; border-color: #cfd8dc; }
 .alert-error { background: #ffeceb; color: #7a1e16; border-color: #f4b9b3; }
 
+/* Modal: ensure strong dark-on-light contrast */
+.modal .modal-content {
+  background: #ffffff;
+  color: var(--npo-text-invert); /* dark text on light background */
+  border: 1px solid var(--npo-neutral-300);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+.modal .modal-content h2,
+.modal .modal-content p,
+.modal .modal-content label {
+  color: var(--npo-text-invert);
+}
+.profile-card {
+  background: #ffffff;
+  color: var(--npo-text-invert);
+  border: 1px solid var(--npo-neutral-300);
+}
+.profile-card:hover {
+  background: #f7f8fa;
+  border-color: var(--npo-neutral-300);
+}
+.profile-card .profile-name { color: var(--npo-text-invert); }
+
 /* Footer */
 footer {
-  background: var(--npo-neutral-50);
-  border-top: 1px solid var(--npo-neutral-200);
+  background: transparent !important; /* override base footer background */
+  border-top: 0; /* remove footer border for a cleaner edge */
 }
 footer .page-inner { max-width: 1280px; margin-inline: auto; padding: var(--npo-spacing-m) var(--npo-spacing-l); color: var(--npo-text-invert); }
 footer p { color: #4b5563; }
@@ -217,15 +248,16 @@ header.topbar { padding: 0; }
 
 /* Light grey backgrounds for main content panels */
 .tab-content {
-  background: var(--npo-neutral-50);
+    margin-top:var(--npo-spacing-m);
+  background: var(--npo-neutral-300);
   color: var(--npo-text-invert);
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
   padding: var(--npo-spacing-xl);
 }
 .status-section {
-  background: var(--npo-neutral-50);
+  background: transparent; /* streamline: remove panel background */
   color: var(--npo-text-invert);
-  padding: var(--npo-spacing-xl);
+  padding: var(--npo-spacing-l); /* tighter spacing */
 }
 
 /* Remove default tabs underline from base CSS if present */

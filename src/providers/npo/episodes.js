@@ -2,7 +2,7 @@ import { createPage, getBrowser, closeBrowser } from '../../lib/browser.js';
 import { getMetadataPath, fileExists, sleep } from '../../lib/utils.js';
 import { readFileSync, writeFile } from 'node:fs';
 import { XMLParser } from "fast-xml-parser";
-import { waitResponseSuffix, generateFileName } from './utils.js';
+import { waitResponseSuffix, generateFileName, extractPlayerInfo } from './utils.js';
 import { npoLogin } from './login.js';
 import getWvKeys from './keys.js';
 import { getConfig } from '../../config/env.js';
@@ -16,11 +16,38 @@ const parser = new XMLParser(options);
 
 const WidevineProxyUrl = "https://npo-drm-gateway.samgcloud.nepworldwide.nl/authentication";
 
-export async function getEpisode(url) {
-  const promiseLogin = npoLogin();
-  await promiseLogin;
+export async function getEpisode(url, profileName = null) {
+  console.log("=== GET EPISODE STARTED ===");
+  console.log("URL:", url);
+  console.log("Profile name passed:", profileName || 'NONE');
+
+  console.log("Calling npoLogin with profile:", profileName || 'NONE');
+  const loginResult = await npoLogin({ profile: profileName });
+  console.log("Login result received:", JSON.stringify(loginResult, null, 2));
+
+  // If profile selection is needed, return that information
+  if (loginResult && loginResult.needsProfileSelection) {
+    console.log("⚠️ Profile selection needed - returning to UI");
+    return {
+      needsProfileSelection: true,
+      profiles: loginResult.profiles,
+      message: loginResult.message
+    };
+  }
+
+  // If login failed for other reasons
+  if (loginResult && !loginResult.success) {
+    console.error("✗ Login failed:", loginResult.error);
+    throw new Error(loginResult.error || 'Login failed');
+  }
+
+  console.log("✓ Login successful, fetching episode information...");
   const result = await getInformation(url);
+
+  console.log("Closing browser...");
   await closeBrowser();
+
+  console.log("=== GET EPISODE COMPLETED ===");
   return result;
 }
 
@@ -54,9 +81,9 @@ export async function getInformation(url) {
     return null;
   }
 
-  console.log("Waiting for video player...");
-  await page.waitForSelector(`.bmpui-image`);
-  const filename = "filename"; // await generateFileName(page);
+  console.log("Waiting for player info...");
+  await page.waitForSelector(`[data-testid='player-info']`);
+  const filename = await generateFileName(page);
 
   console.log(`${filename} - ${url}`);
   const keyPath = getMetadataPath(filename);
@@ -98,12 +125,22 @@ export async function getInformation(url) {
       .pssh || "";
   }
 
+  // Optional: read human-friendly episode details
+  let episodeDetails = null;
+  try {
+    episodeDetails = await extractPlayerInfo(page);
+  } catch (_) {
+    // Non-fatal if player info is not available
+  }
+
   const information = {
     "filename": filename,
     "pssh": pssh,
     "x_custom_data": x_custom_data,
     "mpdUrl": streamData["stream"]["streamURL"],
     "wideVineKeyResponse": null,
+    // Enriched metadata (not required for download flow)
+    ...(episodeDetails || {}),
   };
 
   //if pssh and x_custom_data are not empty, get the keys
@@ -233,10 +270,24 @@ export async function getAllEpisodesFromSeason(url, reverse = false) {
   return urls;
 }
 
-export async function getEpisodes(urls) {
-  const promiseLogin = npoLogin();
+export async function getEpisodes(urls, profileName = null) {
+  const loginResult = await npoLogin({ profile: profileName });
+
+  // If profile selection is needed, return that information
+  if (loginResult && loginResult.needsProfileSelection) {
+    return {
+      needsProfileSelection: true,
+      profiles: loginResult.profiles,
+      message: loginResult.message
+    };
+  }
+
+  // If login failed for other reasons
+  if (loginResult && !loginResult.success) {
+    throw new Error(loginResult.error || 'Login failed');
+  }
+
   let informationList = [];
-  await promiseLogin;
 
   let count = 0;
   for (const npo_url of urls) {
