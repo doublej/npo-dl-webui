@@ -1,4 +1,7 @@
-import { sleep } from '../../lib/utils.js';
+/**
+ * @typedef {import('puppeteer').HTTPResponse} HTTPResponse
+ * @typedef {import('puppeteer').Page} Page
+ */
 
 /**
  * Wait for HTTP response with specific suffix
@@ -11,7 +14,7 @@ export async function waitResponseSuffix(page, suffix) {
     const request = response.request();
     const method = request.method().toUpperCase();
 
-    if (method != "GET" && method != "POST") {
+    if (method !== "GET" && method !== "POST") {
       return false;
     }
     const url = response.url();
@@ -21,7 +24,7 @@ export async function waitResponseSuffix(page, suffix) {
 
     console.log(`request: ${url} method: ${method}`);
     try {
-      const body = await response.buffer();
+      await response.buffer();
     } catch (error) {
       console.error("preflight error");
       return false;
@@ -64,7 +67,7 @@ export async function generateFileName(page) {
   // Build filename with available data
   let filename = '';
   if (info?.episodeNumber != null && !Number.isNaN(info.episodeNumber)) {
-    filename += `E${String(info.episodeNumber).padStart(2, '0')} - `;
+    filename += `E${String(info.episodeNumber).padStart(2, '0')} - `; 
   }
   filename += (info?.title || 'episode');
 
@@ -80,7 +83,7 @@ export async function generateFileName(page) {
  */
 export async function extractPlayerInfo(page) {
   await page.waitForSelector('[data-testid="player-info"]');
-  const result = await page.evaluate(() => {
+  return await page.evaluate(() => {
     const scope = document.querySelector('[data-testid="player-info"]');
 
     // The episode title
@@ -136,8 +139,8 @@ export async function extractPlayerInfo(page) {
 
     return { title, seriesTitle, episodeNumber, seasonNumber, airing, description };
   });
-  return result;
 }
+
 
 // Clearer aliases (non-breaking)
 export {

@@ -1,6 +1,6 @@
 import { createPage } from '../../lib/browser.js';
 import { getConfig } from '../../config/env.js';
-import { sleep } from '../../lib/utils.js';
+import { sleep } from '../../lib/utils/time.js';
 import { waitResponseSuffix } from './utils.js';
 import { writeFile, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';

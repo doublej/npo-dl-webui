@@ -1,12 +1,6 @@
-import {
-    deleteFile,
-    fileExists,
-    getVideoPaths,
-    getFinalVideoPath,
-    getTempPath,
-    runCommand,
-    sleep,
-} from "../../lib/utils.js";
+import { deleteFile, fileExists, getVideoPaths, getFinalVideoPath, getTempPath } from "../../lib/utils/fs.js";
+import { runCommand } from "../../lib/utils/exec.js";
+import { sleep } from "../../lib/utils/time.js";
 
 /**
  * @typedef {Object} ProgressUpdate

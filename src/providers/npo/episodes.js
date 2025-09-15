@@ -1,5 +1,6 @@
 import { createPage, getBrowser, closeBrowser } from '../../lib/browser.js';
-import { getMetadataPath, fileExists, sleep } from '../../lib/utils.js';
+import { getMetadataPath, fileExists } from '../../lib/utils/fs.js';
+import { sleep } from '../../lib/utils/time.js';
 import { readFileSync, writeFile } from 'node:fs';
 import { XMLParser } from "fast-xml-parser";
 import { waitResponseSuffix, generateFileName, extractPlayerInfo } from './utils.js';
