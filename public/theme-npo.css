@@ -6,6 +6,9 @@
   --npo-neutral-100: #eef1f4;
   --npo-neutral-200: #e3e8ee;
   --npo-neutral-300: #d6dde5;
+  /* Logo colors used by inline SVG */
+  --logo-npo-gray: 235, 239, 245; /* light gray diamond */
+  --orange-500: 255, 109, 0;      /* NPO orange */
 }
 
 /* Base */
@@ -72,7 +75,10 @@ header.topbar::after {
 }
 .brand__title { font-weight: 700; letter-spacing: .2px; }
 
-/* Compact status pill in topbar */
+/* Logo sizing for topbar */
+.brand__logo { display: block; height: 40px; width: auto; }
+
+/* Compact status pill in topbar with progress fill */
 .topbar__status {
   font-size: 0.875rem;
   color: rgba(255,255,255,.85);
@@ -81,10 +87,42 @@ header.topbar::after {
   padding: 6px 10px;
   border-radius: var(--npo-radius-s);
   white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+  min-width: 200px;
+  text-align: center;
+  z-index: 1;
 }
-.topbar__status.status-complete { background: rgba(0,0,0,.15); border-color: rgba(0,0,0,.2); color: #cde7ff; }
-.topbar__status.status-partial { background: rgba(255,255,255,.06); color: #ffd7a8; }
-.topbar__status.status-empty { background: rgba(255,255,255,.04); color: #ffb8b8; }
+
+/* Progress fill background */
+.topbar__status::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--progress, 0%);
+  background: linear-gradient(90deg, rgba(255,109,0,0.2) 0%, rgba(255,109,0,0.3) 100%);
+  transition: width 0.3s ease;
+  z-index: -1;
+}
+
+.topbar__status.progress {
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,109,0,.3);
+}
+
+.topbar__status.success {
+  background: rgba(0,255,0,.1);
+  border-color: rgba(0,255,0,.3);
+  color: #90ff90;
+}
+
+.topbar__status.error {
+  background: rgba(255,0,0,.1);
+  border-color: rgba(255,0,0,.3);
+  color: #ff9090;
+}
 
 /* Tabs */
 /* Primary navigation (tabs located in topbar) */
@@ -166,8 +204,7 @@ textarea:focus {
 }
 .btn-secondary:hover { filter: brightness(0.98); }
 
-/* Status + cards */
-.status-section { border-top-color: var(--npo-neutral-200); }
+/* Cards */
 
 .download-card {
   background: transparent; /* streamlined: remove card chrome */
@@ -237,10 +274,10 @@ main { padding: 0; }
 header.topbar { padding: 0; }
 
 /* Reduce inner content max-width constraints from default stylesheet */
-.tab-content, .status-section, footer { width: 100%; }
+.tab-content, footer { width: 100%; }
 
 /* Center main content similar to npo.nl */
-.tab-content, .status-section, footer > * {
+.tab-content, footer > * {
   max-width: 1280px;
   margin-inline: auto;
   padding-inline: var(--npo-spacing-l);
@@ -253,11 +290,6 @@ header.topbar { padding: 0; }
   color: var(--npo-text-invert);
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
   padding: var(--npo-spacing-xl);
-}
-.status-section {
-  background: transparent; /* streamline: remove panel background */
-  color: var(--npo-text-invert);
-  padding: var(--npo-spacing-l); /* tighter spacing */
 }
 
 /* Remove default tabs underline from base CSS if present */

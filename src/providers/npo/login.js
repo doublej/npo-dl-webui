@@ -48,8 +48,15 @@ export async function npoLogin(options = {}) {
   console.log("Config loaded - NPO_PASSW:", config.NPO_PASSW ? 'SET' : 'NOT SET');
   console.log("Config loaded - NPO_PROFILE:", config.NPO_PROFILE || 'NOT SET');
 
-  const page = await createPage();
-  console.log("Browser page created");
+  // Use provided page or create a new one
+  let page = options.page;
+  const shouldClosePage = !page;
+  if (!page) {
+    page = await createPage();
+    console.log("Browser page created");
+  } else {
+    console.log("Using provided browser page");
+  }
 
   console.log("Step 1: Navigating to https://npo.nl/start");
   await page.goto("https://npo.nl/start");
@@ -58,12 +65,16 @@ export async function npoLogin(options = {}) {
   // check that email and password are set
   if (!config.NPO_EMAIL) {
     console.error("ERROR: NPO_EMAIL is not set in .env file");
-    await page.close();
+    if (shouldClosePage) {
+      await page.close();
+    }
     return;
   }
   if (!config.NPO_PASSW) {
     console.error("ERROR: NPO_PASSW is not set in .env file");
-    await page.close();
+    if (shouldClosePage) {
+      await page.close();
+    }
     return;
   }
 
@@ -195,7 +206,9 @@ export async function npoLogin(options = {}) {
       console.log("✓ Logged out successfully");
 
       console.log("Closing browser and returning profile list to UI...");
-      await page.close();
+      if (shouldClosePage) {
+        await page.close();
+      }
       return {
         success: false,
         needsProfileSelection: true,
@@ -219,7 +232,9 @@ export async function npoLogin(options = {}) {
         // Profile not found, return error
         console.error(`✗ Profile "${profileToSelect}" NOT FOUND in available profiles`);
         console.log("Available profiles were:", profiles.map(p => p.name).join(', '));
-        await page.close();
+        if (shouldClosePage) {
+          await page.close();
+        }
         return {
           success: false,
           error: `Profile "${profileToSelect}" not found`,
@@ -235,8 +250,10 @@ export async function npoLogin(options = {}) {
     await waitResponseSuffix(page, "session");
     console.log("✓ Session established");
 
-    await page.close();
-    console.log("✓ Browser closed");
+    if (shouldClosePage) {
+      await page.close();
+      console.log("✓ Browser closed");
+    }
     console.log("=== LOGIN SUCCESSFUL ===");
 
     // Return success with selected profile
@@ -257,13 +274,17 @@ export async function npoLogin(options = {}) {
       await waitResponseSuffix(page, "session");
       console.log("✓ Session established (direct login)");
 
-      await page.close();
-      console.log("✓ Browser closed");
+      if (shouldClosePage) {
+        await page.close();
+        console.log("✓ Browser closed");
+      }
       console.log("=== LOGIN SUCCESSFUL (Direct) ===");
       return { success: true, profiles: [], selectedProfile: null };
     } catch (sessionError) {
       console.error("✗ Failed to establish session:", sessionError.message);
-      await page.close();
+      if (shouldClosePage) {
+        await page.close();
+      }
       console.log("=== LOGIN FAILED ===");
       throw sessionError;
     }

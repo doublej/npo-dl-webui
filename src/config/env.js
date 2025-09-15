@@ -25,10 +25,12 @@ function loadEnvFile() {
       if (trimmed && !trimmed.startsWith('#')) {
         const [key, ...valueParts] = trimmed.split('=');
         if (key) {
-          const value = valueParts.join('=').trim();
-          envVars[key.trim()] = value;
+          // Trim both key and value to handle spaces around =
+          const cleanKey = key.trim();
+          const cleanValue = valueParts.join('=').trim();
+          envVars[cleanKey] = cleanValue;
           // Also set in process.env for compatibility
-          process.env[key.trim()] = value;
+          process.env[cleanKey] = cleanValue;
         }
       }
     });
@@ -85,6 +87,7 @@ function getConfig() {
     // NPO Credentials
     NPO_EMAIL: process.env.NPO_EMAIL || '',
     NPO_PASSW: process.env.NPO_PASSW || '',
+    NPO_PROFILE: process.env.NPO_PROFILE || '',
 
     // Browser settings
     HEADLESS: process.env.HEADLESS === 'true',

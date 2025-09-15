@@ -85,9 +85,16 @@ async function serveStatic(req, res) {
 async function handleDownloadEpisode(req, res) {
   try {
     const { url, profile } = await parseBody(req);
+
+    // If no profile provided, try to use the one from environment
+    const envVars = loadEnvFile();
+    const profileToUse = profile || envVars.NPO_PROFILE || null;
+
     console.log("\n=== DOWNLOAD EPISODE REQUEST ===");
     console.log("URL:", url);
-    console.log("Profile:", profile || 'NONE');
+    console.log("Profile from request:", profile || 'NONE');
+    console.log("Profile from env:", envVars.NPO_PROFILE || 'NONE');
+    console.log("Profile to use:", profileToUse || 'NONE');
 
     if (!url) {
       return sendError(res, 'URL is required');
@@ -100,8 +107,12 @@ async function handleDownloadEpisode(req, res) {
     // Start download asynchronously
     (async () => {
       try {
+        // Broadcast fetching info phase
+        activeDownloads.set(downloadId, { status: 'fetching_info' });
+        broadcastStatus(downloadId, 'fetching_info', { url });
+
         console.log("Calling getEpisode...");
-        const information = await getEpisode(url, profile);
+        const information = await getEpisode(url, profileToUse);
         console.log("getEpisode returned:", information ? 'data' : 'null');
 
         // Check if profile selection is needed
@@ -126,8 +137,15 @@ async function handleDownloadEpisode(req, res) {
         broadcastStatus(downloadId, 'downloading', { filename: information.filename });
 
         // Create progress callback for WebSocket updates
+        let progressCounter = 0;
         const progressCallback = (progress) => {
-          console.log(`Progress for ${downloadId}:`, progress);
+          // Only log every 25th update to reduce console spam
+          if (progressCounter % 25 === 0) {
+            console.log(`Progress for ${downloadId}:`, progress);
+          }
+          progressCounter++;
+
+          // Always broadcast to WebSocket for smooth UI
           broadcastProgress(downloadId, progress);
 
           // Update active downloads with progress
@@ -159,6 +177,10 @@ async function handleDownloadShow(req, res) {
       return sendError(res, 'URL is required');
     }
 
+    // Get profile from environment
+    const envVars = loadEnvFile();
+    const profileToUse = envVars.NPO_PROFILE || null;
+
     const downloadId = Date.now().toString();
     activeDownloads.set(downloadId, { status: 'processing', url, type: 'show' });
 
@@ -174,7 +196,7 @@ async function handleDownloadShow(req, res) {
             totalEpisodes: urls.length,
             currentEpisode: i + 1
           });
-          const information = await getEpisode(urls[i]);
+          const information = await getEpisode(urls[i], profileToUse);
           if (information) {
             await downloadFromID(information);
           }
@@ -199,6 +221,10 @@ async function handleDownloadSeason(req, res) {
       return sendError(res, 'URL is required');
     }
 
+    // Get profile from environment
+    const envVars = loadEnvFile();
+    const profileToUse = envVars.NPO_PROFILE || null;
+
     const downloadId = Date.now().toString();
     activeDownloads.set(downloadId, { status: 'processing', url, type: 'season' });
 
@@ -214,7 +240,7 @@ async function handleDownloadSeason(req, res) {
             totalEpisodes: urls.length,
             currentEpisode: i + 1
           });
-          const information = await getEpisode(urls[i]);
+          const information = await getEpisode(urls[i], profileToUse);
           if (information) {
             await downloadFromID(information);
           }
@@ -239,6 +265,10 @@ async function handleBatchDownload(req, res) {
       return sendError(res, 'URLs array is required');
     }
 
+    // Get profile from environment
+    const envVars = loadEnvFile();
+    const profileToUse = envVars.NPO_PROFILE || null;
+
     const downloadId = Date.now().toString();
     activeDownloads.set(downloadId, { status: 'processing', type: 'batch', totalUrls: urls.length });
 
@@ -252,7 +282,7 @@ async function handleBatchDownload(req, res) {
             currentFile: urls[i]
           });
 
-          const information = await getEpisode(urls[i]);
+          const information = await getEpisode(urls[i], profileToUse);
           if (information) {
             await downloadFromID(information);
           }
@@ -288,19 +318,152 @@ async function handleStatus(req, res) {
   }
 }
 
-// List downloaded episodes (files in videos/final)
-async function handleListDownloads(req, res) {
+// Get hierarchical show/season/episode structure
+async function handleGetShowsHierarchy(req, res) {
   try {
+    const METADATA_DIR = join(__dirname, '../../videos/metadata');
     const entries = await readdir(VIDEOS_DIR, { withFileTypes: true });
-    const files = [];
+    const shows = new Map();
+
     for (const entry of entries) {
       if (entry.isFile() && (entry.name.endsWith('.mkv') || entry.name.endsWith('.mp4'))) {
         const fullPath = join(VIDEOS_DIR, entry.name);
         const info = await stat(fullPath);
+
+        // Try to load metadata
+        let metadata = {};
+        const baseName = entry.name.replace(/\.(mkv|mp4)$/, '');
+        const metadataPath = join(METADATA_DIR, `${baseName}.json`);
+
+        if (existsSync(metadataPath)) {
+          try {
+            const metadataContent = readFileSync(metadataPath, 'utf-8');
+            metadata = JSON.parse(metadataContent);
+          } catch (e) {
+            console.error(`Failed to parse metadata for ${baseName}:`, e);
+          }
+        }
+
+        // Parse filename to extract show info if not in metadata
+        let showTitle = metadata.seriesTitle;
+        let seasonNumber = metadata.seasonNumber || 1;
+        let episodeNumber = metadata.episodeNumber || 1;
+        let episodeTitle = metadata.title || baseName;
+
+        // If no seriesTitle but we have a title field, that's likely the show name
+        // (based on the current metadata structure where title = "De week van Merijn")
+        if (!showTitle && metadata.title) {
+          showTitle = metadata.title;
+          // The episode title might be in the filename
+          const episodeMatch = baseName.match(/E\d+\s*-\s*(.+)/i);
+          if (episodeMatch) {
+            episodeTitle = episodeMatch[1] || metadata.title;
+          }
+        }
+
+        // Try to parse from filename pattern like "S01E01 - Title" or "E01 - Title"
+        const episodeMatch = baseName.match(/(?:S(\d+))?E(\d+)\s*-\s*(.+)/i);
+        if (episodeMatch) {
+          seasonNumber = episodeMatch[1] ? parseInt(episodeMatch[1]) : seasonNumber;
+          episodeNumber = parseInt(episodeMatch[2]);
+          if (!showTitle) {
+            // Use the title after the episode number as show title if we don't have one
+            showTitle = episodeMatch[3];
+          }
+        }
+
+        // Fallback to Unknown Show if still no title
+        if (!showTitle) {
+          showTitle = 'Unknown Show';
+        }
+
+        // Get or create show
+        if (!shows.has(showTitle)) {
+          shows.set(showTitle, {
+            title: showTitle,
+            seasons: new Map()
+          });
+        }
+        const show = shows.get(showTitle);
+
+        // Get or create season
+        if (!show.seasons.has(seasonNumber)) {
+          show.seasons.set(seasonNumber, {
+            number: seasonNumber,
+            episodes: []
+          });
+        }
+        const season = show.seasons.get(seasonNumber);
+
+        // Add episode
+        season.episodes.push({
+          filename: entry.name,
+          episodeNumber: episodeNumber,
+          title: episodeTitle,
+          description: metadata.description,
+          airing: metadata.airing,
+          duration: metadata.duration,
+          size: info.size,
+          mtime: info.mtimeMs,
+          fullMetadata: metadata
+        });
+      }
+    }
+
+    // Convert to array format
+    const result = Array.from(shows.values()).map(show => ({
+      title: show.title,
+      seasons: Array.from(show.seasons.values()).map(season => ({
+        number: season.number,
+        episodes: season.episodes.sort((a, b) => a.episodeNumber - b.episodeNumber)
+      })).sort((a, b) => a.number - b.number)
+    }));
+
+    sendJSON(res, { shows: result });
+  } catch (error) {
+    sendError(res, error.message, 500);
+  }
+}
+
+// List downloaded episodes (files in videos/final)
+async function handleListDownloads(req, res) {
+  try {
+    const METADATA_DIR = join(__dirname, '../../videos/metadata');
+    const entries = await readdir(VIDEOS_DIR, { withFileTypes: true });
+    const files = [];
+
+    for (const entry of entries) {
+      if (entry.isFile() && (entry.name.endsWith('.mkv') || entry.name.endsWith('.mp4'))) {
+        const fullPath = join(VIDEOS_DIR, entry.name);
+        const info = await stat(fullPath);
+
+        // Try to load metadata
+        let metadata = {};
+        const baseName = entry.name.replace(/\.(mkv|mp4)$/, '');
+        const metadataPath = join(METADATA_DIR, `${baseName}.json`);
+
+        if (existsSync(metadataPath)) {
+          try {
+            const metadataContent = readFileSync(metadataPath, 'utf-8');
+            metadata = JSON.parse(metadataContent);
+          } catch (e) {
+            console.error(`Failed to parse metadata for ${baseName}:`, e);
+          }
+        }
+
         files.push({
           name: entry.name,
           size: info.size,
-          mtime: info.mtimeMs
+          mtime: info.mtimeMs,
+          metadata: {
+            title: metadata.title || baseName,
+            episodeNumber: metadata.episodeNumber,
+            seasonNumber: metadata.seasonNumber,
+            seriesTitle: metadata.seriesTitle,
+            description: metadata.description,
+            airing: metadata.airing,
+            duration: metadata.duration
+          }
         });
       }
     }
@@ -539,6 +702,8 @@ const server = createServer(async (req, res) => {
     await handleStatus(req, res);
   } else if (path === '/api/downloads' && req.method === 'GET') {
     await handleListDownloads(req, res);
+  } else if (path === '/api/shows' && req.method === 'GET') {
+    await handleGetShowsHierarchy(req, res);
   } else if (path === '/api/config' && req.method === 'GET') {
     await handleGetConfig(req, res);
   } else if (path === '/api/config' && req.method === 'POST') {

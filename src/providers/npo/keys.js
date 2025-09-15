@@ -1,7 +1,20 @@
 import axios from "axios";
 import { Buffer } from "node:buffer";
 
+/**
+ * Service for retrieving Widevine decryption keys.
+ */
 class getWvKeys {
+  /**
+   * @param {string} pssh - Base64 PSSH box.
+   * @param {string} licenseUrl - DRM license server URL.
+   * @param {string} authKey - API key for getwvkeys service.
+   * @param {string} x_custom_data - Provider custom DRM token.
+   * @param {string} [apiUrl="https://getwvkeys.cc/pywidevine"] - Helper API URL.
+   * @param {string} [buildInfo=""] - Optional build info.
+   * @param {boolean} [force=false] - Force refresh flag.
+   * @param {boolean} [verbose=false] - Verbose logging.
+   */
   constructor(
     pssh,
     licenseUrl,
@@ -139,9 +152,40 @@ class getWvKeys {
     }
     return decrypt_response["keys"][0];
   }
+
+  // New clearer method names (wrappers for backward compatibility)
+  /** @returns {Promise<{cache: boolean, challenge?: Buffer, keys?: any[]}>>} */
+  async buildLicenseRequestPayload() {
+    return this.generate_request();
+  }
+
+  /**
+   * @param {Buffer} challenge
+   * @returns {Promise<string>} Base64-encoded license response
+   */
+  async requestLicense(challenge) {
+    return this.post_request(challenge);
+  }
+
+  /**
+   * @param {string} license_response - Base64-encoded license response
+   * @returns {Promise<any>} Parsed decrypter response containing keys
+   */
+  async extractKeysFromLicense(license_response) {
+    return this.decrypter(license_response);
+  }
+
+  /**
+   * @returns {Promise<string>} Content decryption key (hex)
+   */
+  async fetchKeys() {
+    return this.getWvKeys();
+  }
 }
 
 export default getWvKeys;
+// Named alias with clearer class name
+export { getWvKeys as WvKeyService };
 
 function log(msg, error = false) {
   if (error) {

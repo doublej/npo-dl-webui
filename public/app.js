@@ -21,6 +21,7 @@ function initWebSocket() {
     ws.onopen = () => {
         console.log('WebSocket connected');
         clearTimeout(wsReconnectTimer);
+        updateTopbarStatus('Connected to server', 'success');
     };
 
     ws.onmessage = (event) => {
@@ -38,9 +39,11 @@ function initWebSocket() {
 
     ws.onclose = () => {
         console.log('WebSocket disconnected');
+        updateTopbarStatus('Disconnected from server', 'warning');
         // Attempt to reconnect after 3 seconds
         wsReconnectTimer = setTimeout(() => {
             console.log('Attempting to reconnect WebSocket...');
+            updateTopbarStatus('Reconnecting...', 'info');
             initWebSocket();
         }, 3000);
     };
@@ -51,14 +54,17 @@ function handleWebSocketMessage(data) {
     switch (data.type) {
         case 'connected':
             console.log('WebSocket:', data.message);
+            updateTopbarStatus('Connected', 'success');
             break;
 
         case 'download_progress':
             updateDownloadProgress(data.downloadId, data.progress);
+            updateTopbarWithProgress(data.downloadId, data.progress);
             break;
 
         case 'download_status':
             updateDownloadStatus(data.downloadId, data.status, data);
+            updateTopbarWithStatus(data.downloadId, data.status, data);
             break;
 
         default:
@@ -71,7 +77,99 @@ function updateDownloadProgress(downloadId, progress) {
     const download = activeDownloads.get(downloadId);
     if (download) {
         activeDownloads.set(downloadId, { ...download, progress });
-        updateDownloadDisplay();
+    }
+}
+
+// Update topbar status
+function updateTopbarStatus(message, type = 'info', progress = null) {
+    const topbar = document.getElementById('topbar-status');
+    if (topbar) {
+        topbar.textContent = message;
+        topbar.className = `topbar__status ${type}`;
+
+        // Set progress CSS variable if provided
+        if (progress !== null) {
+            topbar.style.setProperty('--progress', `${progress}%`);
+        } else {
+            topbar.style.removeProperty('--progress');
+        }
+    }
+}
+
+// Update topbar with download progress
+function updateTopbarWithProgress(downloadId, progress) {
+    if (progress && progress.percentage !== undefined) {
+        let displayMessage = '';
+        const percentage = Math.round(progress.percentage);
+
+        // Use custom message if provided, otherwise format based on stage
+        if (progress.message) {
+            displayMessage = progress.message;
+        } else {
+            switch (progress.stage) {
+                case 'downloading_video':
+                    displayMessage = `Downloading video: ${percentage}%`;
+                    break;
+                case 'downloading_audio':
+                    displayMessage = `Downloading audio: ${percentage}%`;
+                    break;
+                case 'downloading':
+                    displayMessage = `Downloading: ${percentage}%`;
+                    break;
+                case 'decrypting':
+                    displayMessage = `Decrypting: ${percentage}%`;
+                    break;
+                case 'merging':
+                    displayMessage = `Merging audio/video: ${percentage}%`;
+                    break;
+                case 'completed':
+                    displayMessage = 'Download completed!';
+                    break;
+                default:
+                    displayMessage = `${progress.stage}: ${percentage}%`;
+            }
+        }
+
+        // Add speed and ETA if available
+        if (progress.speed && progress.eta && progress.stage === 'downloading') {
+            displayMessage = `Downloading: ${percentage}% (${progress.speed} - ETA: ${progress.eta})`;
+        }
+
+        updateTopbarStatus(displayMessage, 'progress', percentage);
+    }
+}
+
+// Update topbar with download status
+function updateTopbarWithStatus(downloadId, status, data) {
+    let message = '';
+    let type = 'info';
+
+    switch (status) {
+        case 'fetching_info':
+            message = 'Fetching episode information...';
+            break;
+        case 'downloading':
+            message = `Downloading: ${data.filename || 'episode'}`;
+            break;
+        case 'decrypting':
+            message = 'Decrypting video...';
+            break;
+        case 'merging':
+            message = 'Merging audio and video...';
+            break;
+        case 'completed':
+            message = `Download completed: ${data.filename || 'episode'}`;
+            type = 'success';
+            setTimeout(() => updateTopbarStatus('', 'info'), 5000);
+            break;
+        case 'error':
+            message = `Error: ${data.error || 'Download failed'}`;
+            type = 'error';
+            break;
+    }
+
+    if (message) {
+        updateTopbarStatus(message, type);
     }
 }
 
@@ -80,14 +178,12 @@ function updateDownloadStatus(downloadId, status, data) {
     const download = activeDownloads.get(downloadId);
     if (download) {
         activeDownloads.set(downloadId, { ...download, status, ...data });
-        updateDownloadDisplay();
 
         // Remove completed/errored downloads after 10 seconds
         if (status === 'completed' || status === 'error') {
             setTimeout(() => {
                 activeDownloads.delete(downloadId);
-                updateDownloadDisplay();
-            }, 10000);
+                    }, 10000);
         }
     }
 }
@@ -184,7 +280,6 @@ async function startDownload(endpoint, data) {
 function trackDownload(downloadId) {
     if (!activeDownloads.has(downloadId)) {
         activeDownloads.set(downloadId, { id: downloadId, status: 'pending' });
-        updateDownloadDisplay();
     }
 
     // With WebSocket, we don't need polling anymore
@@ -199,8 +294,7 @@ function trackDownload(downloadId) {
         .then(response => response.json())
         .then(status => {
             activeDownloads.set(downloadId, { id: downloadId, ...status });
-            updateDownloadDisplay();
-
+    
             // Handle profile selection needed
             if (status.status === 'needs_profile') {
                 handleProfileNeeded(downloadId, status);
@@ -211,36 +305,40 @@ function trackDownload(downloadId) {
         });
 }
 
-// Update download display
-function updateDownloadDisplay() {
-    const container = document.getElementById('downloads-container');
-
-    if (activeDownloads.size === 0) {
-        container.innerHTML = '<p class="no-downloads">No active downloads</p>';
-        return;
-    }
-
-    let html = '';
-    for (const [id, download] of activeDownloads) {
-        html += createDownloadCard(download);
-    }
-    container.innerHTML = html;
-}
 
 // Handle profile selection needed
 async function handleProfileNeeded(downloadId, status) {
+    console.log('Profile selection needed for download:', downloadId);
+    console.log('Status object:', status);
+
     // Remove from active downloads first
     activeDownloads.delete(downloadId);
     updateDownloadDisplay();
 
     // Show modal with profile selection
-    showProfileModal(status.profiles, status.url);
+    if (status.profiles && status.profiles.length > 0) {
+        console.log('Showing profile modal with profiles:', status.profiles);
+        console.log('Original URL:', status.url);
+        showProfileModal(status.profiles, status.url);
+    } else {
+        console.error('No profiles available in status:', status);
+    }
 }
 
 // Show profile selection modal
 function showProfileModal(profiles, originalUrl) {
+    console.log('showProfileModal called with:', { profiles, originalUrl });
     const modal = document.getElementById('profile-modal');
     const modalButtons = document.getElementById('modal-profile-buttons');
+
+    if (!modal) {
+        console.error('Profile modal element not found!');
+        return;
+    }
+    if (!modalButtons) {
+        console.error('Profile modal buttons container not found!');
+        return;
+    }
 
     // Clear existing buttons
     modalButtons.innerHTML = '';
@@ -467,7 +565,6 @@ document.getElementById('settings-form').addEventListener('submit', async (e) =>
         const result = await response.json();
 
         if (result.success) {
-            showSettingsStatus('success', result.message);
             // Clear password fields for security if they were updated
             if (config.NPO_PASSW !== '********') {
                 document.getElementById('npo-password').value = '';
@@ -477,11 +574,8 @@ document.getElementById('settings-form').addEventListener('submit', async (e) =>
             }
             // Reload config to show masked values and update status
             await loadConfig();
-        } else {
-            showSettingsStatus('error', result.error || 'Failed to save settings');
         }
     } catch (error) {
-        showSettingsStatus('error', 'Failed to save settings: ' + error.message);
     }
 });
 
@@ -495,12 +589,8 @@ document.getElementById('test-connection').addEventListener('click', async () =>
         const result = await response.json();
 
         if (result.success) {
-            showSettingsStatus('success', result.message);
-        } else {
-            showSettingsStatus('error', result.message);
         }
     } catch (error) {
-        showSettingsStatus('error', 'Connection test failed: ' + error.message);
     }
 });
 
@@ -513,7 +603,6 @@ document.getElementById('select-profile').addEventListener('click', async () => 
     if (profileList.style.display === 'none') {
         // Fetch available profiles
         try {
-            showSettingsStatus('info', 'Fetching available profiles...');
             const response = await fetch(`${API_BASE}/profiles`);
             const result = await response.json();
 
@@ -535,14 +624,8 @@ document.getElementById('select-profile').addEventListener('click', async () => 
                 });
 
                 profileList.style.display = 'block';
-                showSettingsStatus('success', `Found ${result.profiles.length} profile(s)`);
-            } else if (result.success && (!result.profiles || result.profiles.length === 0)) {
-                showSettingsStatus('info', 'No profiles found. Login directly without profile selection.');
-            } else {
-                showSettingsStatus('error', 'Failed to fetch profiles');
             }
         } catch (error) {
-            showSettingsStatus('error', 'Failed to fetch profiles: ' + error.message);
         }
     } else {
         profileList.style.display = 'none';
@@ -565,12 +648,8 @@ async function selectProfile(profileName) {
         if (result.success) {
             document.getElementById('current-profile').textContent = profileName;
             document.getElementById('profile-list').style.display = 'none';
-            showSettingsStatus('success', `Profile set to: ${profileName}`);
-        } else {
-            showSettingsStatus('error', result.error || 'Failed to set profile');
         }
     } catch (error) {
-        showSettingsStatus('error', 'Failed to set profile: ' + error.message);
     }
 }
 
@@ -604,113 +683,274 @@ async function loadConfig() {
             document.getElementById('current-profile').textContent = 'Not selected';
         }
 
-        // Update configuration status
-        updateConfigStatus(config);
     } catch (error) {
         console.error('Failed to load configuration:', error);
-        updateConfigStatus({ hasApiKey: false, hasPassword: false, NPO_EMAIL: '' });
+
     }
 }
 
-// Update configuration status indicator
-function updateConfigStatus(config) {
-    let statusEl = document.getElementById('config-status');
-    if (!statusEl) {
-        // Create status element if it doesn't exist
-        const statusDiv = document.createElement('div');
-        statusDiv.id = 'config-status';
-        statusDiv.className = 'config-status';
-
-        // Insert after the settings form
-        const settingsForm = document.getElementById('settings-form');
-        settingsForm.parentNode.insertBefore(statusDiv, settingsForm.nextSibling);
-        statusEl = statusDiv;
-    }
-
-    const hasAllRequired = config.hasApiKey && config.NPO_EMAIL && config.hasPassword;
-    const requiredCount = [config.hasApiKey, config.NPO_EMAIL, config.hasPassword].filter(Boolean).length;
-
-    let statusClass, statusText;
-
-    if (hasAllRequired) {
-        statusClass = 'status-complete';
-        statusText = 'Configuration Complete - Ready to download';
-    } else if (requiredCount > 0) {
-        statusClass = 'status-partial';
-        statusText = `Configuration Incomplete (${requiredCount}/3 required fields set)`;
-    } else {
-        statusClass = 'status-empty';
-        statusText = 'Configuration Required - Please set NPO credentials and API key';
-    }
-
-    statusEl.className = `config-status ${statusClass}`;
-    statusEl.innerHTML = `
-        <div class="status-text">${statusText}</div>
-        <div class="status-details">
-            <span class="${config.NPO_EMAIL ? 'set' : 'unset'}">Email: ${config.NPO_EMAIL ? 'Set' : 'Not set'}</span>
-            <span class="${config.hasPassword ? 'set' : 'unset'}">Password: ${config.hasPassword ? 'Set' : 'Not set'}</span>
-            <span class="${config.hasApiKey ? 'set' : 'unset'}">API Key: ${config.hasApiKey ? 'Set' : 'Not set'}</span>
-        </div>
-    `;
-
-    // Update subtle topbar status pill present on every page
-    const topbarStatus = document.getElementById('topbar-status');
-    if (topbarStatus) {
-        topbarStatus.className = `topbar__status ${statusClass}`;
-        const compactText = hasAllRequired ? 'Config: Complete' : (requiredCount > 0 ? `Config: ${requiredCount}/3` : 'Config: Missing');
-        topbarStatus.textContent = compactText;
-    }
-}
 
 // Show settings status message
-function showSettingsStatus(type, message) {
-    const statusEl = document.getElementById('settings-status');
-    statusEl.className = `status-message status-${type}`;
-    statusEl.textContent = message;
-    statusEl.style.display = 'block';
-
-    setTimeout(() => {
-        statusEl.style.display = 'none';
-    }, 5000);
-}
 
 // Initialize
 initWebSocket();
 checkExistingDownloads();
 loadConfig();
 
-// Load list of downloaded episodes
-async function loadDownloadedList() {
-    const container = document.getElementById('downloaded-container');
-    try {
-        const res = await fetch(`${API_BASE}/downloads`);
-        const data = await res.json();
-        const files = Array.isArray(data.files) ? data.files : [];
-        if (files.length === 0) {
-            container.innerHTML = '<p class="no-downloads">No downloads found</p>';
-            return;
-        }
-        const items = files.map(f => {
-            const date = new Date(f.mtime);
-            const sizeMB = (f.size / (1024*1024)).toFixed(1);
-            const safeName = encodeURIComponent(f.name);
-            return `<div class="download-card status-completed" data-filename="${safeName}">
-                        <div class="download-status">${f.name}</div>
-                        <div class="progress-info">${sizeMB} MB • ${date.toLocaleString()}</div>
-                    </div>`;
-        }).join('');
-        container.innerHTML = items;
+// Store current navigation state
+let navigationState = {
+    level: 'shows', // shows, seasons, episodes
+    currentShow: null,
+    currentSeason: null,
+    showsData: null
+};
 
-        // Bind click handlers to play videos
-        container.querySelectorAll('.download-card').forEach(card => {
-            card.addEventListener('click', () => {
-                const filename = card.getAttribute('data-filename');
-                playVideo(filename, card.querySelector('.download-status').textContent);
+// Load hierarchical show data
+async function loadShowsHierarchy() {
+    const container = document.getElementById('downloaded-container');
+    const title = document.getElementById('downloads-list-title');
+    const breadcrumb = document.getElementById('downloads-breadcrumb');
+
+    try {
+        // Load shows data if not cached
+        if (!navigationState.showsData) {
+            const res = await fetch(`${API_BASE}/shows`);
+            const data = await res.json();
+            navigationState.showsData = data.shows || [];
+        }
+
+        const shows = navigationState.showsData;
+
+        if (navigationState.level === 'shows') {
+            // Display shows list
+            title.textContent = 'Downloaded Shows';
+            breadcrumb.innerHTML = '<span class="breadcrumb-item active" data-level="shows">Shows</span>';
+
+            if (shows.length === 0) {
+                // Hide all other UI elements
+                breadcrumb.style.display = 'none';
+                title.style.display = 'none';
+                document.querySelector('.downloads-detail-panel').style.display = 'none';
+
+                // Show centered message with better contrast
+                container.innerHTML = `
+                    <div class="no-downloads" style="
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        text-align: center;
+                        width: 100%;
+                        padding: 40px;
+                    ">
+                        <p style="
+                            font-size: 1.4em;
+                            margin-bottom: 15px;
+                            color: #333;
+                            font-weight: 500;
+                        ">No downloaded videos yet</p>
+                        <p style="
+                            font-size: 1em;
+                            color: #666;
+                        ">Start by downloading episodes from the other tabs</p>
+                    </div>`;
+                return;
+            }
+
+            // Show UI elements when there are downloads
+            breadcrumb.style.display = '';
+            title.style.display = '';
+            document.querySelector('.downloads-detail-panel').style.display = '';
+
+            const showCards = shows.map(show => {
+                const episodeCount = show.seasons.reduce((sum, s) => sum + s.episodes.length, 0);
+                const seasonText = show.seasons.length === 1 ? '1 season' : `${show.seasons.length} seasons`;
+                const episodeText = episodeCount === 1 ? '1 episode' : `${episodeCount} episodes`;
+
+                return `<div class="nav-card show-card" data-show="${show.title}">
+                            <div class="nav-card-title">${show.title}</div>
+                            <div class="nav-card-info">${seasonText} • ${episodeText}</div>
+                            <div class="nav-card-arrow">›</div>
+                        </div>`;
+            }).join('');
+
+            container.innerHTML = showCards;
+
+            // Add click handlers
+            container.querySelectorAll('.show-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const showTitle = card.getAttribute('data-show');
+                    navigateToSeasons(showTitle);
+                });
+            });
+
+        } else if (navigationState.level === 'seasons') {
+            // Display seasons for selected show
+            const show = shows.find(s => s.title === navigationState.currentShow);
+            if (!show) return;
+
+            title.textContent = navigationState.currentShow;
+            breadcrumb.innerHTML = `
+                <span class="breadcrumb-item" data-level="shows">Shows</span>
+                <span class="breadcrumb-separator">›</span>
+                <span class="breadcrumb-item active" data-level="seasons">${navigationState.currentShow}</span>
+            `;
+
+            const seasonCards = show.seasons.map(season => {
+                const episodeText = season.episodes.length === 1 ? '1 episode' : `${season.episodes.length} episodes`;
+                return `<div class="nav-card season-card" data-season="${season.number}">
+                            <div class="nav-card-title">Season ${season.number}</div>
+                            <div class="nav-card-info">${episodeText}</div>
+                            <div class="nav-card-arrow">›</div>
+                        </div>`;
+            }).join('');
+
+            container.innerHTML = seasonCards;
+
+            // Add click handlers
+            container.querySelectorAll('.season-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const seasonNumber = parseInt(card.getAttribute('data-season'));
+                    navigateToEpisodes(navigationState.currentShow, seasonNumber);
+                });
+            });
+
+        } else if (navigationState.level === 'episodes') {
+            // Display episodes for selected season
+            const show = shows.find(s => s.title === navigationState.currentShow);
+            if (!show) return;
+
+            const season = show.seasons.find(s => s.number === navigationState.currentSeason);
+            if (!season) return;
+
+            title.textContent = `${navigationState.currentShow} - Season ${navigationState.currentSeason}`;
+            breadcrumb.innerHTML = `
+                <span class="breadcrumb-item" data-level="shows">Shows</span>
+                <span class="breadcrumb-separator">›</span>
+                <span class="breadcrumb-item" data-level="seasons">${navigationState.currentShow}</span>
+                <span class="breadcrumb-separator">›</span>
+                <span class="breadcrumb-item active" data-level="episodes">Season ${navigationState.currentSeason}</span>
+            `;
+
+            const episodeCards = season.episodes.map((episode, index) => {
+                const sizeMB = (episode.size / (1024*1024)).toFixed(1);
+                const date = new Date(episode.mtime);
+                // Store episode data in a safer way
+                if (!window.episodeDataCache) {
+                    window.episodeDataCache = {};
+                }
+                const episodeId = `episode-${navigationState.currentShow}-${navigationState.currentSeason}-${index}`;
+                window.episodeDataCache[episodeId] = episode;
+
+                return `<div class="nav-card episode-card" data-filename="${encodeURIComponent(episode.filename)}" data-episode-id="${episodeId}">
+                            <div class="nav-card-title">Episode ${episode.episodeNumber}: ${episode.title}</div>
+                            <div class="nav-card-info">${sizeMB} MB • ${date.toLocaleDateString()}</div>
+                        </div>`;
+            }).join('');
+
+            container.innerHTML = episodeCards;
+
+            // Add click handlers
+            container.querySelectorAll('.episode-card').forEach(card => {
+                card.addEventListener('click', (event) => {
+                    const episodeId = card.getAttribute('data-episode-id');
+                    const episodeData = window.episodeDataCache[episodeId];
+                    if (episodeData) {
+                        showEpisodeDetails(episodeData, event);
+                    }
+                });
+            });
+        }
+
+        // Add breadcrumb click handlers
+        breadcrumb.querySelectorAll('.breadcrumb-item:not(.active)').forEach(item => {
+            item.addEventListener('click', () => {
+                const level = item.getAttribute('data-level');
+                if (level === 'shows') {
+                    navigateToShows();
+                } else if (level === 'seasons') {
+                    navigateToSeasons(navigationState.currentShow);
+                }
             });
         });
+
     } catch (e) {
+        console.error('Failed to load shows:', e);
         container.innerHTML = '<p class="no-downloads">Failed to load downloads</p>';
     }
+}
+
+// Navigation functions
+function navigateToShows() {
+    navigationState.level = 'shows';
+    navigationState.currentShow = null;
+    navigationState.currentSeason = null;
+    loadShowsHierarchy();
+    hideEpisodeDetails();
+}
+
+function navigateToSeasons(showTitle) {
+    navigationState.level = 'seasons';
+    navigationState.currentShow = showTitle;
+    navigationState.currentSeason = null;
+    loadShowsHierarchy();
+    hideEpisodeDetails();
+}
+
+function navigateToEpisodes(showTitle, seasonNumber) {
+    navigationState.level = 'episodes';
+    navigationState.currentShow = showTitle;
+    navigationState.currentSeason = seasonNumber;
+    loadShowsHierarchy();
+    hideEpisodeDetails();
+}
+
+// Show episode details
+function showEpisodeDetails(episode, event) {
+    document.getElementById('episode-details').style.display = 'block';
+    document.getElementById('no-selection').style.display = 'none';
+    document.getElementById('player-section').style.display = 'none';
+
+    // Fill in episode details
+    document.getElementById('episode-title').textContent = episode.title;
+    document.getElementById('episode-number').textContent = episode.episodeNumber;
+    document.getElementById('episode-airing').textContent = episode.airing || 'Unknown';
+    document.getElementById('episode-duration').textContent = episode.duration || 'Unknown';
+
+    const sizeMB = (episode.size / (1024*1024)).toFixed(1);
+    document.getElementById('episode-size').textContent = `${sizeMB} MB`;
+
+    document.getElementById('episode-description').textContent = episode.description || 'No description available';
+
+    // Store current episode for play button
+    document.getElementById('play-episode').onclick = () => {
+        playVideo(encodeURIComponent(episode.filename), episode.title);
+        document.getElementById('player-section').style.display = 'block';
+    };
+
+    // Highlight selected episode
+    document.querySelectorAll('.episode-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    if (event && event.currentTarget) {
+        event.currentTarget.classList.add('selected');
+    }
+}
+
+function hideEpisodeDetails() {
+    document.getElementById('episode-details').style.display = 'none';
+    document.getElementById('no-selection').style.display = 'block';
+    document.getElementById('player-section').style.display = 'none';
+}
+
+// Load list of downloaded episodes (fallback/compatibility)
+async function loadDownloadedList() {
+    // Now loads hierarchical view
+    navigationState.level = 'shows';
+    navigationState.currentShow = null;
+    navigationState.currentSeason = null;
+    navigationState.showsData = null;
+    await loadShowsHierarchy();
 }
 
 function playVideo(encodedFilename, displayName) {

@@ -8,6 +8,27 @@ import getWvKeys from './keys.js';
 import { getConfig } from '../../config/env.js';
 import { downloadFromID } from '../../services/download/downloader.js';
 
+// Small predicate helpers for clarity
+function needsProfileSelection(loginResult) {
+  return Boolean(loginResult && loginResult.needsProfileSelection);
+}
+
+function isLoginFailure(loginResult) {
+  return Boolean(loginResult && !loginResult.success);
+}
+
+function isStartRedirect(url) {
+  return url === "https://npo.nl/start";
+}
+
+function hasDrm(pssh, x_custom_data) {
+  return (pssh?.length || 0) !== 0 && (x_custom_data?.length || 0) !== 0;
+}
+
+function isPlusOnlyContent(pageContent) {
+  return pageContent.includes("Alleen te zien met NPO Plus");
+}
+
 const options = {
   ignoreAttributes: false,
   removeNSPrefix: true,
@@ -16,43 +37,76 @@ const parser = new XMLParser(options);
 
 const WidevineProxyUrl = "https://npo-drm-gateway.samgcloud.nepworldwide.nl/authentication";
 
+/**
+ * Fetch episode information; handles login and profile selection flow.
+ * @param {string} url
+ * @param {string|null} [profileName]
+ * @returns {Promise<any>} Information object or a profile selection payload
+ */
 export async function getEpisode(url, profileName = null) {
   console.log("=== GET EPISODE STARTED ===");
   console.log("URL:", url);
   console.log("Profile name passed:", profileName || 'NONE');
 
-  console.log("Calling npoLogin with profile:", profileName || 'NONE');
-  const loginResult = await npoLogin({ profile: profileName });
-  console.log("Login result received:", JSON.stringify(loginResult, null, 2));
+  // Create a single page to be used throughout the flow
+  const page = await createPage();
+  console.log("Created browser page");
 
-  // If profile selection is needed, return that information
-  if (loginResult && loginResult.needsProfileSelection) {
-    console.log("⚠️ Profile selection needed - returning to UI");
-    return {
-      needsProfileSelection: true,
-      profiles: loginResult.profiles,
-      message: loginResult.message
-    };
+  try {
+    console.log("Calling npoLogin with profile:", profileName || 'NONE');
+    const loginResult = await npoLogin({ profile: profileName, page });
+    console.log("Login result received:", JSON.stringify(loginResult, null, 2));
+
+    // If profile selection is needed, return that information
+    if (needsProfileSelection(loginResult)) {
+      console.log("⚠️ Profile selection needed - returning to UI");
+      await page.close();
+      await closeBrowser();
+      return {
+        needsProfileSelection: true,
+        profiles: loginResult.profiles,
+        message: loginResult.message,
+        url: url  // Ensure URL is included for the modal
+      };
+    }
+
+    // If login failed for other reasons
+    if (isLoginFailure(loginResult)) {
+      console.error("✗ Login failed:", loginResult.error);
+      await page.close();
+      await closeBrowser();
+      throw new Error(loginResult.error || 'Login failed');
+    }
+
+    console.log("✓ Login successful, fetching episode information...");
+    const result = await getInformation(url, page);
+
+    await page.close();
+    console.log("Closing browser...");
+    await closeBrowser();
+
+    console.log("=== GET EPISODE COMPLETED ===");
+    return result;
+  } catch (error) {
+    // Make sure to close page and browser on error
+    await page.close();
+    await closeBrowser();
+    throw error;
   }
-
-  // If login failed for other reasons
-  if (loginResult && !loginResult.success) {
-    console.error("✗ Login failed:", loginResult.error);
-    throw new Error(loginResult.error || 'Login failed');
-  }
-
-  console.log("✓ Login successful, fetching episode information...");
-  const result = await getInformation(url);
-
-  console.log("Closing browser...");
-  await closeBrowser();
-
-  console.log("=== GET EPISODE COMPLETED ===");
-  return result;
 }
 
-export async function getInformation(url) {
-  const page = await createPage();
+/**
+ * Extracts episode information from an episode page.
+ * @param {string} url
+ * @param {import('puppeteer-core').Page|null} [page]
+ * @returns {Promise<any|null>}
+ */
+export async function getInformation(url, page = null) {
+  // Create page only if not provided
+  const shouldClosePage = !page;
+  if (!page) {
+    page = await createPage();
+  }
 
   console.log(`Navigating to episode: ${url}`);
   await page.goto(url);
@@ -75,8 +129,10 @@ export async function getInformation(url) {
     // No accept button found, continue
   }
 
-  if (page.url() === "https://npo.nl/start") {
-    await page.close();
+  if (isStartRedirect(page.url())) {
+    if (shouldClosePage) {
+      await page.close();
+    }
     console.log(`Error wrong episode ID ${url}`);
     return null;
   }
@@ -89,7 +145,9 @@ export async function getInformation(url) {
   const keyPath = getMetadataPath(filename);
 
   if (await fileExists(keyPath)) {
-    await page.close();
+    if (shouldClosePage) {
+      await page.close();
+    }
     console.log("information already gathered");
     return JSON.parse(readFileSync(keyPath, "utf8"));
   }
@@ -109,7 +167,7 @@ export async function getInformation(url) {
     x_custom_data = streamData["stream"]["drmToken"] || "";
   } catch (TypeError) {
     const pageContent = await page.content();
-    if (pageContent.includes("Alleen te zien met NPO Plus")) {
+    if (isPlusOnlyContent(pageContent)) {
       console.log("Error content needs NPO Plus subscription");
       return null;
     }
@@ -143,8 +201,8 @@ export async function getInformation(url) {
     ...(episodeDetails || {}),
   };
 
-  //if pssh and x_custom_data are not empty, get the keys
-  if (pssh.length !== 0 && x_custom_data.length !== 0) {
+  // If we have DRM values, fetch the keys
+  if (hasDrm(pssh, x_custom_data)) {
     const WVKey = await getWVKeys(pssh, x_custom_data);
     information.wideVineKeyResponse = WVKey.trim();
   } else {
@@ -154,13 +212,21 @@ export async function getInformation(url) {
   writeKeyFile(keyPath, JSON.stringify(information));
 
   try {
-    await page.close();
+    if (shouldClosePage) {
+      await page.close();
+    }
   } catch (error) {
     console.error(error);
   }
   return information;
 }
 
+/**
+ * Build a list of episode URLs starting from a known first ID.
+ * @param {string} firstId
+ * @param {number} episodeCount
+ * @returns {Promise<any>} Result of getEpisodes on the constructed URLs
+ */
 export function getEpisodesInOrder(firstId, episodeCount) {
   const index = firstId.lastIndexOf("_") + 1;
 
@@ -178,6 +244,13 @@ export function getEpisodesInOrder(firstId, episodeCount) {
   return getEpisodes(urls);
 }
 
+/**
+ * Retrieve all episode URLs from a show page.
+ * @param {string} url
+ * @param {number} [seasonCount=-1] - Limit seasons; -1 means all.
+ * @param {boolean} [reverse=false]
+ * @returns {Promise<string[]>}
+ */
 export async function getAllEpisodesFromShow(url, seasonCount = -1, reverse = false) {
   const page = await createPage();
 
@@ -229,6 +302,12 @@ export async function getAllEpisodesFromShow(url, seasonCount = -1, reverse = fa
   return urls;
 }
 
+/**
+ * Retrieve all episode URLs from a season page.
+ * @param {string} url
+ * @param {boolean} [reverse=false]
+ * @returns {Promise<string[]>}
+ */
 export async function getAllEpisodesFromSeason(url, reverse = false) {
   const page = await createPage();
 
@@ -270,6 +349,13 @@ export async function getAllEpisodesFromSeason(url, reverse = false) {
   return urls;
 }
 
+/**
+ * Given a set of episode URLs, log in (if needed), fetch info for each,
+ * and trigger downloads in parallel.
+ * @param {string[]} urls
+ * @param {string|null} [profileName]
+ * @returns {Promise<any>}
+ */
 export async function getEpisodes(urls, profileName = null) {
   const loginResult = await npoLogin({ profile: profileName });
 
@@ -349,3 +435,6 @@ async function getWVKeys(pssh, x_custom_data) {
   });
   return await promise;
 }
+
+// Clearer alias exports (non-breaking)
+export { getEpisode as fetchEpisode, getInformation as fetchEpisodeInfo, getEpisodes as listEpisodes };

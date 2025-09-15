@@ -76,21 +76,56 @@ export async function generateFileName(page) {
 /**
  * Extracts episode details from the player info block using stable data-testid selectors.
  * @param {Page} page
- * @returns {Promise<{title: string|null, episodeNumber: number|null, airing: string|null, description: string|null}>}
+ * @returns {Promise<{title: string|null, seriesTitle: string|null, episodeNumber: number|null, seasonNumber: number|null, airing: string|null, description: string|null}>}
  */
 export async function extractPlayerInfo(page) {
   await page.waitForSelector('[data-testid="player-info"]');
   const result = await page.evaluate(() => {
     const scope = document.querySelector('[data-testid="player-info"]');
 
+    // The episode title
     const title = scope?.querySelector('[data-testid="txt-header"]')?.textContent?.trim() ?? null;
+
+    // Try to find series title - often in breadcrumb or in a parent element
+    let seriesTitle = null;
+
+    // First try: Look for series title in breadcrumb navigation
+    const breadcrumb = document.querySelector('nav[aria-label="Breadcrumb"]');
+    if (breadcrumb) {
+      const links = breadcrumb.querySelectorAll('a');
+      // Usually the series is the second-to-last item in breadcrumb
+      if (links.length >= 2) {
+        seriesTitle = links[links.length - 2]?.textContent?.trim();
+      }
+    }
+
+    // Second try: Look for series link near the player
+    if (!seriesTitle) {
+      const seriesLink = document.querySelector('a[href*="/start/serie/"]');
+      if (seriesLink && !seriesLink.href.includes('/afspelen')) {
+        seriesTitle = seriesLink.textContent?.trim();
+      }
+    }
+
+    // Third try: Extract from the title if it follows a pattern
+    if (!seriesTitle && title) {
+      // If title is the series name itself (common for first episodes)
+      seriesTitle = title;
+    }
 
     const metaText = scope?.querySelector('[data-testid="txt-metadata"]')?.innerText?.trim() ?? "";
     const parts = metaText.split("•").map(s => s.trim());
 
     let episodeNumber = null;
-    const m = /Afl\.\s*(\d+)/i.exec(parts[0] || "");
-    if (m) episodeNumber = Number(m[1]);
+    let seasonNumber = null;
+
+    // Look for episode number (Afl. X)
+    const episodeMatch = /Afl\.\s*(\d+)/i.exec(parts[0] || "");
+    if (episodeMatch) episodeNumber = Number(episodeMatch[1]);
+
+    // Look for season number (Seizoen X or S X)
+    const seasonMatch = /(?:Seizoen|S)\s*(\d+)/i.exec(metaText);
+    if (seasonMatch) seasonNumber = Number(seasonMatch[1]);
 
     const airing = parts[1] || null;
 
@@ -99,7 +134,7 @@ export async function extractPlayerInfo(page) {
       description = description.replace(/\s*Lees meer\s*$/i, '').trim();
     }
 
-    return { title, episodeNumber, airing, description };
+    return { title, seriesTitle, episodeNumber, seasonNumber, airing, description };
   });
   return result;
 }

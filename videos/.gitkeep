@@ -1,5 +1,0 @@
-# This file keeps the videos directory structure in git
-# Subdirectories:
-# - final/: Downloaded .mkv files
-# - metadata/: Episode information and keys
-# - temp/: Temporary download files

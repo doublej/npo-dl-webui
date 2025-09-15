@@ -263,6 +263,7 @@ fabric.properties
 !/videos/.gitkeep
 
 # Legacy paths (for cleanup)
+videos/*
 videos/*.mkv
 videos/keys/*.json
 
