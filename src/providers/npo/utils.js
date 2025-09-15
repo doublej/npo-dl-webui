@@ -138,3 +138,10 @@ export async function extractPlayerInfo(page) {
   });
   return result;
 }
+
+// Clearer aliases (non-breaking)
+export {
+  waitResponseSuffix as waitForResponseWithSuffix,
+  generateFileName as buildOutputFilename,
+  extractPlayerInfo as parsePlayerInfoFromPage,
+};

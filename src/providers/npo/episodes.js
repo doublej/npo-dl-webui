@@ -29,6 +29,74 @@ function isPlusOnlyContent(pageContent) {
   return pageContent.includes("Alleen te zien met NPO Plus");
 }
 
+// Atomic helpers (no logic changes)
+async function navigateAndHandleConsent(page, url) {
+  console.log(`Navigating to episode: ${url}`);
+  await page.goto(url);
+  console.log(`Current URL after navigation: ${page.url()}`);
+  await sleep(2000);
+  try {
+    const acceptButton = await page.$(
+      "button[data-testid*=\"accept\"], button[data-testid*=\"continue\"], button:has-text(\"Accepteren\"), button:has-text(\"Doorgaan\")"
+    );
+    if (acceptButton) {
+      console.log("Found accept/continue button, clicking...");
+      await acceptButton.click();
+      await sleep(1000);
+    }
+  } catch (_) {
+    // ignore
+  }
+}
+
+async function waitForStreamAndMpd(page) {
+  const mpdPromise = waitResponseSuffix(page, "mpd");
+  const streamResponsePromise = waitResponseSuffix(page, "stream-link");
+  // reload the page to get the stream link
+  await page.reload();
+  const [mpdResponse, streamResponse] = await Promise.all([
+    mpdPromise,
+    streamResponsePromise,
+  ]);
+  const mpdText = await mpdResponse.text();
+  const mpdData = parser.parse(mpdText);
+  const streamData = await streamResponse.json();
+  return { mpdData, streamData };
+}
+
+function extractPssh(mpdData) {
+  let pssh = "";
+  try {
+    if ("ContentProtection" in mpdData["MPD"]["Period"]["AdaptationSet"][1]) {
+      pssh = mpdData["MPD"]["Period"]["AdaptationSet"][1]["ContentProtection"][3].pssh || "";
+    }
+  } catch (_) {
+    // leave as empty string if structure is unexpected
+  }
+  return pssh;
+}
+
+async function readPlusOnlyFallback(page) {
+  const pageContent = await page.content();
+  if (isPlusOnlyContent(pageContent)) {
+    console.log("Error content needs NPO Plus subscription");
+    return true;
+  }
+  return false;
+}
+
+function buildInformation(filename, pssh, x_custom_data, streamData, episodeDetails) {
+  return {
+    filename,
+    pssh,
+    x_custom_data,
+    mpdUrl: streamData["stream"]["streamURL"],
+    wideVineKeyResponse: null,
+    // Enriched metadata (not required for download flow)
+    ...(episodeDetails || {}),
+  };
+}
+
 const options = {
   ignoreAttributes: false,
   removeNSPrefix: true,
@@ -108,26 +176,7 @@ export async function getInformation(url, page = null) {
     page = await createPage();
   }
 
-  console.log(`Navigating to episode: ${url}`);
-  await page.goto(url);
-
-  console.log(`Current URL after navigation: ${page.url()}`);
-
-  // Wait a bit to see if there are any redirects or popups
-  await sleep(2000);
-
-  // Check if we need to handle any consent screens or popups
-  try {
-    // Try to find and click any "accept" or "continue" buttons if they exist
-    const acceptButton = await page.$('button[data-testid*="accept"], button[data-testid*="continue"], button:has-text("Accepteren"), button:has-text("Doorgaan")');
-    if (acceptButton) {
-      console.log("Found accept/continue button, clicking...");
-      await acceptButton.click();
-      await sleep(1000);
-    }
-  } catch (e) {
-    // No accept button found, continue
-  }
+  await navigateAndHandleConsent(page, url);
 
   if (isStartRedirect(page.url())) {
     if (shouldClosePage) {
@@ -153,35 +202,16 @@ export async function getInformation(url, page = null) {
   }
   console.log("gathering information");
 
-  const mpdPromise = waitResponseSuffix(page, "mpd");
-  const streamResponsePromise = waitResponseSuffix(page, "stream-link");
-
-  // reload the page to get the stream link
-  await page.reload();
-
-  const streamResponse = await streamResponsePromise;
-  const streamData = await streamResponse.json();
+  const { mpdData, streamData } = await waitForStreamAndMpd(page);
 
   let x_custom_data = "";
   try {
     x_custom_data = streamData["stream"]["drmToken"] || "";
   } catch (TypeError) {
-    const pageContent = await page.content();
-    if (isPlusOnlyContent(pageContent)) {
-      console.log("Error content needs NPO Plus subscription");
-      return null;
-    }
+    if (await readPlusOnlyFallback(page)) return null;
   }
-  const mpdResponse = await mpdPromise;
-  const mpdText = await mpdResponse.text();
-  const mpdData = parser.parse(mpdText);
 
-  let pssh = "";
-  // check if the mpdData contains the necessary information
-  if ("ContentProtection" in mpdData["MPD"]["Period"]["AdaptationSet"][1]) {
-    pssh = mpdData["MPD"]["Period"]["AdaptationSet"][1]["ContentProtection"][3]
-      .pssh || "";
-  }
+  const pssh = extractPssh(mpdData);
 
   // Optional: read human-friendly episode details
   let episodeDetails = null;
@@ -191,15 +221,7 @@ export async function getInformation(url, page = null) {
     // Non-fatal if player info is not available
   }
 
-  const information = {
-    "filename": filename,
-    "pssh": pssh,
-    "x_custom_data": x_custom_data,
-    "mpdUrl": streamData["stream"]["streamURL"],
-    "wideVineKeyResponse": null,
-    // Enriched metadata (not required for download flow)
-    ...(episodeDetails || {}),
-  };
+  const information = buildInformation(filename, pssh, x_custom_data, streamData, episodeDetails);
 
   // If we have DRM values, fetch the keys
   if (hasDrm(pssh, x_custom_data)) {

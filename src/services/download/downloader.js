@@ -18,6 +18,18 @@ import {
 const videoPaths = getVideoPaths();
 
 // Tiny predicate/utility helpers for readability (no logic changes)
+const STAGE = {
+    DOWNLOADING_VIDEO: 'downloading_video',
+    DECRYPTING: 'decrypting',
+    MERGING: 'merging',
+    COMPLETED: 'completed',
+};
+
+function reportProgress(progressCallback, percentage, stage, message) {
+    if (!progressCallback) return;
+    progressCallback({ percentage, stage, message });
+}
+
 function hasWidevineKey(key) {
     return key != null && key !== '';
 }
@@ -29,6 +41,22 @@ function normalizeWidevineKey(key) {
 
 function buildEncryptedBasename(filename) {
     return `encrypted#${filename}`;
+}
+
+async function isFileAlreadyDownloaded(combinedFileName, progressCallback) {
+    if (await fileExists(combinedFileName)) {
+        console.log("File already downloaded");
+        reportProgress(progressCallback, 100, STAGE.COMPLETED, 'File already exists');
+        return true;
+    }
+    return false;
+}
+
+function extractWidevineKeyFromInfo(information) {
+    if (information && information.wideVineKeyResponse != null) {
+        return information.wideVineKeyResponse.toString();
+    }
+    return null;
 }
 
 /**
@@ -58,44 +86,29 @@ async function downloadEpisodeById(information, progressCallback = null) {
     console.log(filename);
 
     const combinedFileName = getFinalVideoPath(filename);
-    if (await fileExists(combinedFileName)) {
-        console.log("File already downloaded");
-        if (progressCallback) {
-            progressCallback({
-                percentage: 100,
-                stage: 'completed',
-                message: 'File already exists'
-            });
-        }
+    if (await isFileAlreadyDownloaded(combinedFileName, progressCallback)) {
         return combinedFileName;
     }
 
     console.log(information);
 
     // Report downloading phase
-    if (progressCallback) {
-        progressCallback({
-            percentage: 0,
-            stage: 'downloading_video',
-            message: 'Starting video download...'
-        });
-    }
+    reportProgress(progressCallback, 0, STAGE.DOWNLOADING_VIDEO, 'Starting video download...');
 
     // Download video and audio with progress
     filename = await downloadMpdResources(information.mpdUrl.toString(), filename, progressCallback);
 
     console.log(filename);
 
-    let key = information.wideVineKeyResponse !== null ? information.wideVineKeyResponse.toString() : null;
+    let key = extractWidevineKeyFromInfo(information);
 
     // Report decryption phase
-    if (progressCallback) {
-        progressCallback({
-            percentage: 50,
-            stage: hasWidevineKey(key) ? 'decrypting' : 'merging',
-            message: hasWidevineKey(key) ? 'Decrypting video...' : 'Merging audio and video...'
-        });
-    }
+    reportProgress(
+        progressCallback,
+        50,
+        hasWidevineKey(key) ? STAGE.DECRYPTING : STAGE.MERGING,
+        hasWidevineKey(key) ? 'Decrypting video...' : 'Merging audio and video...'
+    );
 
     // Decrypt and merge files with progress
     return await decryptSegments(filename, key, progressCallback);
@@ -171,13 +184,7 @@ async function muxAudioAndVideo(filename, video, audio, key, progressCallback = 
     const combinedFileName = getFinalVideoPath(filename);
 
     // Report merging phase
-    if (progressCallback) {
-        progressCallback({
-            percentage: 75,
-            stage: 'merging',
-            message: 'Merging audio and video tracks...'
-        });
-    }
+    reportProgress(progressCallback, 75, STAGE.MERGING, 'Merging audio and video tracks...');
 
     let args = ["-i", video, "-i", audio, "-c", "copy", combinedFileName];
     if (key != null) {
@@ -199,13 +206,7 @@ async function muxAudioAndVideo(filename, video, audio, key, progressCallback = 
     const result = await runCommand("ffmpeg", args, combinedFileName, progressCallback);
 
     // Report completion
-    if (progressCallback) {
-        progressCallback({
-            percentage: 100,
-            stage: 'completed',
-            message: 'Download completed successfully'
-        });
-    }
+    reportProgress(progressCallback, 100, STAGE.COMPLETED, 'Download completed successfully');
 
     return result;
 }
@@ -218,4 +219,5 @@ export {
     downloadMpdResources as downloadMpd,
     decryptSegments as decryptFiles,
     muxAudioAndVideo as combineVideoAndAudio,
+    STAGE,
 };

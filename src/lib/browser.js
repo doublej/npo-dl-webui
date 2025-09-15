@@ -3,7 +3,21 @@ import { getConfig } from '../config/env.js';
 
 let browserInstance = null;
 
-// Launch browser instance
+/**
+ * Build launch options based on configuration.
+ * @param {ReturnType<typeof getConfig>} config
+ */
+function buildLaunchOptions(config) {
+  return {
+    headless: config.HEADLESS,
+    channel: "chrome",
+  };
+}
+
+/**
+ * Launch browser instance (singleton).
+ * @returns {Promise<import('puppeteer-core').Browser>}
+ */
 export async function launchBrowser() {
   if (browserInstance) {
     return browserInstance;
@@ -12,10 +26,7 @@ export async function launchBrowser() {
   const config = getConfig();
 
   try {
-    browserInstance = await launch({
-      headless: config.HEADLESS,
-      channel: "chrome"
-    });
+    browserInstance = await launch(buildLaunchOptions(config));
 
     console.log('Browser launched successfully');
     return browserInstance;
@@ -25,7 +36,10 @@ export async function launchBrowser() {
   }
 }
 
-// Get browser instance (launch if needed)
+/**
+ * Get browser instance (launch if needed).
+ * @returns {Promise<import('puppeteer-core').Browser>}
+ */
 export async function getBrowser() {
   if (!browserInstance) {
     return await launchBrowser();
@@ -33,7 +47,17 @@ export async function getBrowser() {
   return browserInstance;
 }
 
-// Close browser instance
+/**
+ * Whether a browser instance is currently open.
+ * @returns {boolean}
+ */
+export function isBrowserOpen() {
+  return Boolean(browserInstance);
+}
+
+/**
+ * Close browser instance if open.
+ */
 export async function closeBrowser() {
   if (browserInstance) {
     try {
@@ -47,7 +71,10 @@ export async function closeBrowser() {
   }
 }
 
-// Create new page with common settings
+/**
+ * Create a new page with common settings and a clean state.
+ * @returns {Promise<import('puppeteer-core').Page>}
+ */
 export async function createPage() {
   const browser = await getBrowser();
   const page = await browser.newPage();
@@ -71,7 +98,9 @@ export async function createPage() {
   return page;
 }
 
-// Graceful shutdown
+/**
+ * Graceful shutdown handler to close the browser.
+ */
 export async function gracefulShutdown() {
   console.log('Shutting down browser...');
   await closeBrowser();
@@ -81,3 +110,6 @@ export async function gracefulShutdown() {
 process.on('SIGINT', gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);
 process.on('exit', gracefulShutdown);
+
+// Clearer alias exports to improve readability in callers while keeping compatibility
+export { createPage as openPage, gracefulShutdown as registerGracefulShutdown };

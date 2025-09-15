@@ -3,7 +3,10 @@ import { WebSocketServer } from 'ws';
 // Store connected clients
 const clients = new Set();
 
-// Initialize WebSocket server
+/**
+ * Initialize WebSocket server and basic lifecycle handlers.
+ * @param {import('node:http').Server} server
+ */
 export function initWebSocketServer(server) {
   const wss = new WebSocketServer({ server });
 
@@ -41,7 +44,10 @@ export function initWebSocketServer(server) {
   return wss;
 }
 
-// Broadcast message to all connected clients
+/**
+ * Broadcast message to all connected clients.
+ * @param {any} data
+ */
 export function broadcast(data) {
   const message = JSON.stringify(data);
 
@@ -57,14 +63,22 @@ export function broadcast(data) {
   });
 }
 
-// Send message to specific client (if we track client IDs)
+/**
+ * Send message to specific client (no-ops to broadcast until client IDs are tracked).
+ * @param {string} clientId
+ * @param {any} data
+ */
 export function sendToClient(clientId, data) {
   // This would require tracking clients by ID
   // For now, we'll use broadcast
   broadcast(data);
 }
 
-// Broadcast download progress
+/**
+ * Broadcast download progress update.
+ * @param {string} downloadId
+ * @param {{percentage?: number, stage?: string, message?: string}} progress
+ */
 export function broadcastProgress(downloadId, progress) {
   broadcast({
     type: 'download_progress',
@@ -73,7 +87,12 @@ export function broadcastProgress(downloadId, progress) {
   });
 }
 
-// Broadcast download status update
+/**
+ * Broadcast download status update.
+ * @param {string} downloadId
+ * @param {string} status
+ * @param {object} [data]
+ */
 export function broadcastStatus(downloadId, status, data = {}) {
   broadcast({
     type: 'download_status',
@@ -83,7 +102,16 @@ export function broadcastStatus(downloadId, status, data = {}) {
   });
 }
 
-// Get number of connected clients
+/**
+ * Get number of connected clients.
+ */
 export function getClientCount() {
   return clients.size;
 }
+
+// Clearer alias exports (non-breaking)
+export {
+  broadcast as broadcastMessage,
+  sendToClient as sendMessageToClient,
+  broadcastProgress as broadcastProgressUpdate,
+};

@@ -63,7 +63,7 @@ class getWvKeys {
       log("headers: " + JSON.stringify(responseHeaders));
     }
 
-    if ("x-cache" in responseHeaders) {
+    if (isCachedResponse(responseHeaders)) {
       return { "cache": true, "keys": licenseData["keys"] };
     }
 
@@ -140,17 +140,14 @@ class getWvKeys {
     let licenseData = await this.generate_request();
 
     if (licenseData["cache"] === true) {
-      return licenseData["keys"][0]["key"];
+      return selectKeyFromKeysArray(licenseData["keys"], 0);
     }
 
     let license_response = await this.post_request(licenseData["challenge"]);
     let decrypt_response = await this.decrypter(license_response);
 
     // Make sure we return the key string, not the object
-    if (typeof decrypt_response["keys"][0] === 'object') {
-      return decrypt_response["keys"][0]["key"] || "";
-    }
-    return decrypt_response["keys"][0];
+    return selectKeyFromKeysArray(decrypt_response["keys"], 0);
   }
 
   // New clearer method names (wrappers for backward compatibility)
@@ -186,6 +183,26 @@ class getWvKeys {
 export default getWvKeys;
 // Named alias with clearer class name
 export { getWvKeys as WvKeyService };
+
+// Internal helpers for clarity
+function isCachedResponse(headers) {
+  return headers && Object.prototype.hasOwnProperty.call(headers, 'x-cache');
+}
+
+/**
+ * Selects a key value from a keys array where entries may be strings or objects.
+ * @param {any[]} keys
+ * @param {number} index
+ * @returns {string}
+ */
+function selectKeyFromKeysArray(keys, index) {
+  if (!Array.isArray(keys) || keys.length <= index) return "";
+  const entry = keys[index];
+  if (entry && typeof entry === 'object') {
+    return entry["key"] || "";
+  }
+  return typeof entry === 'string' ? entry : "";
+}
 
 function log(msg, error = false) {
   if (error) {

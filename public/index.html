@@ -40,8 +40,8 @@
                 <!-- Single Episode Tab -->
                 <div id="episode-tab" class="tab-pane active">
                     <form id="episode-form">
+                            <label for="episode-url">episode url:</label>
                         <div class="form-group">
-                            <label for="episode-url">Episode URL:</label>
                             <input
                                 type="url"
                                 id="episode-url"
@@ -56,8 +56,8 @@
                 <!-- Entire Show Tab -->
                 <div id="show-tab" class="tab-pane">
                     <form id="show-form">
+                            <label for="show-url">show url:</label>
                         <div class="form-group">
-                            <label for="show-url">Show URL:</label>
                             <input
                                 type="url"
                                 id="show-url"
@@ -65,8 +65,8 @@
                                 required
                             >
                         </div>
+                            <label for="season-count">number of seasons (optional):</label>
                         <div class="form-group">
-                            <label for="season-count">Number of Seasons (optional):</label>
                             <input
                                 type="number"
                                 id="season-count"
@@ -76,9 +76,9 @@
                         </div>
                         <div class="form-group">
                             <label>
-                                <input type="checkbox" id="show-reverse">
-                                Start from first season
+                                start from first season
                             </label>
+                                <input type="checkbox" id="show-reverse">
                         </div>
                         <button type="submit" class="btn-primary">Download Show</button>
                     </form>
@@ -87,8 +87,8 @@
                 <!-- Season Tab -->
                 <div id="season-tab" class="tab-pane">
                     <form id="season-form">
+                            <label for="season-url">season url:</label>
                         <div class="form-group">
-                            <label for="season-url">Season URL:</label>
                             <input
                                 type="url"
                                 id="season-url"
@@ -98,9 +98,9 @@
                         </div>
                         <div class="form-group">
                             <label>
-                                <input type="checkbox" id="season-reverse">
-                                Start from first episode
+                                start from first episode
                             </label>
+                                <input type="checkbox" id="season-reverse">
                         </div>
                         <button type="submit" class="btn-primary">Download Season</button>
                     </form>
@@ -109,8 +109,8 @@
                 <!-- Batch Download Tab -->
                 <div id="batch-tab" class="tab-pane">
                     <form id="batch-form">
+                            <label for="batch-urls">episode urls (one per line):</label>
                         <div class="form-group">
-                            <label for="batch-urls">Episode URLs (one per line):</label>
                             <textarea
                                 id="batch-urls"
                                 rows="10"
@@ -128,8 +128,8 @@ https://npo.nl/start/serie/..."
                 <div id="settings-tab" class="tab-pane">
                     <form id="settings-form">
                         <h3>NPO Credentials</h3>
+                            <label for="npo-email">npo email:</label>
                         <div class="form-group">
-                            <label for="npo-email">NPO Email:</label>
                             <input
                                 type="email"
                                 id="npo-email"
@@ -137,8 +137,8 @@ https://npo.nl/start/serie/..."
                                 required
                             >
                         </div>
+                            <label for="npo-password">npo password:</label>
                         <div class="form-group">
-                            <label for="npo-password">NPO Password:</label>
                             <input
                                 type="password"
                                 id="npo-password"
@@ -149,8 +149,8 @@ https://npo.nl/start/serie/..."
                         </div>
 
                         <h3 style="margin-top: 30px;">NPO Profile</h3>
+                            <label for="npo-profile">selected profile:</label>
                         <div class="form-group">
-                            <label for="npo-profile">Selected Profile:</label>
                             <div id="profile-selection" style="display: flex; gap: 10px; align-items: center;">
                                 <span id="current-profile" style="font-weight: bold;">Not selected</span>
                                 <button type="button" id="select-profile" class="btn-secondary">Select Profile</button>
@@ -162,8 +162,8 @@ https://npo.nl/start/serie/..."
                         </div>
 
                         <h3 style="margin-top: 30px;">API Configuration</h3>
+                            <label for="api-key">getwvkeys api key:</label>
                         <div class="form-group">
-                            <label for="api-key">GetWVKeys API Key:</label>
                             <input
                                 type="password"
                                 id="api-key"
@@ -176,9 +176,9 @@ https://npo.nl/start/serie/..."
                         <h3 style="margin-top: 30px;">Browser Settings</h3>
                         <div class="form-group">
                             <label>
-                                <input type="checkbox" id="headless-mode">
-                                Run browser in headless mode (no window)
+                                run in headless mode (window)
                             </label>
+                                <input type="checkbox" id="headless-mode">
                             <small class="help-text">Enable for background downloads, disable for debugging</small>
                         </div>
 
