@@ -80,7 +80,7 @@ header.topbar::after {
 
 /* Compact status pill in topbar with progress fill */
 .topbar__status {
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   color: rgba(255,255,255,.85);
   background: rgba(255,255,255,.06);
   border: 1px solid rgba(255,255,255,.12);
@@ -89,7 +89,7 @@ header.topbar::after {
   white-space: nowrap;
   position: relative;
   overflow: hidden;
-  min-width: 200px;
+  min-width: 180px;
   text-align: center;
   z-index: 1;
 }
@@ -320,6 +320,39 @@ a:focus-visible {
 
 /* Ensure consistent radius on tab content areas */
 .tab-content { border-radius: var(--npo-radius-s); }
+
+/* Download overlay to grey out page during downloads */
+.download-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 15;
+  pointer-events: none;
+}
+
+/* When downloading, disable interactions and grey out content */
+body.downloading {
+  overflow: hidden;
+}
+
+body.downloading .tab-content,
+body.downloading footer,
+body.downloading .primary-nav .tab-button {
+  opacity: 0.5;
+  pointer-events: none;
+  filter: blur(0.5px);
+  transition: all 0.3s ease;
+}
+
+/* Keep the status pill bright and interactive during downloads */
+body.downloading .topbar__status {
+  opacity: 1;
+  pointer-events: auto;
+  filter: none;
+}
 /* Reinstate base spacing for text elements overridden by global reset */
 h1, h2, h3, h4, h5, h6 {
   margin-block-start: var(--npo-spacing-l);

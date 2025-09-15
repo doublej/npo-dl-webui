@@ -160,7 +160,7 @@ function updateTopbarWithStatus(downloadId, status, data) {
         case 'completed':
             message = `Download completed: ${data.filename || 'episode'}`;
             type = 'success';
-            setTimeout(() => updateTopbarStatus('', 'info'), 5000);
+            setTimeout(() => updateTopbarStatus('Connected', 'info'), 5000);
             break;
         case 'error':
             message = `Error: ${data.error || 'Download failed'}`;
@@ -179,11 +179,30 @@ function updateDownloadStatus(downloadId, status, data) {
     if (download) {
         activeDownloads.set(downloadId, { ...download, status, ...data });
 
+        // Show overlay for active downloads
+        if (status === 'downloading' || status === 'decrypting' || status === 'merging' || status === 'fetching_info') {
+            showDownloadOverlay();
+        }
+
         // Remove completed/errored downloads after 10 seconds
         if (status === 'completed' || status === 'error') {
             setTimeout(() => {
                 activeDownloads.delete(downloadId);
-                    }, 10000);
+                // Reset topbar to connected state and hide overlay if no more active downloads
+                if (activeDownloads.size === 0) {
+                    updateTopbarStatus('Connected', 'info');
+                    hideDownloadOverlay();
+                } else {
+                    // Check if any remaining downloads are active
+                    const hasActiveDownloads = Array.from(activeDownloads.values()).some(d =>
+                        d.status === 'downloading' || d.status === 'decrypting' ||
+                        d.status === 'merging' || d.status === 'fetching_info'
+                    );
+                    if (!hasActiveDownloads) {
+                        hideDownloadOverlay();
+                    }
+                }
+            }, 10000);
         }
     }
 }
@@ -253,6 +272,8 @@ document.getElementById('batch-form').addEventListener('submit', async (e) => {
 // Start download
 async function startDownload(endpoint, data) {
     try {
+        showDownloadOverlay(); // Show overlay when starting download
+
         const response = await fetch(`${API_BASE}${endpoint}`, {
             method: 'POST',
             headers: {
@@ -265,14 +286,18 @@ async function startDownload(endpoint, data) {
 
         if (result.error) {
             showError(result.error);
+            hideDownloadOverlay(); // Hide on error
         } else {
             showSuccess(result.message);
             if (result.downloadId) {
                 trackDownload(result.downloadId);
+            } else {
+                hideDownloadOverlay(); // Hide if no download started
             }
         }
     } catch (error) {
         showError('Failed to start download: ' + error.message);
+        hideDownloadOverlay(); // Hide on error
     }
 }
 
@@ -313,7 +338,9 @@ async function handleProfileNeeded(downloadId, status) {
 
     // Remove from active downloads first
     activeDownloads.delete(downloadId);
-    updateDownloadDisplay();
+
+    // Hide overlay since download needs user interaction
+    hideDownloadOverlay();
 
     // Show modal with profile selection
     if (status.profiles && status.profiles.length > 0) {
@@ -964,5 +991,23 @@ function playVideo(encodedFilename, displayName) {
     if (displayName) {
         nowPlaying.style.display = 'block';
         nowPlaying.textContent = `Now playing: ${displayName}`;
+    }
+}
+
+// Show download overlay
+function showDownloadOverlay() {
+    const overlay = document.getElementById('download-overlay');
+    if (overlay) {
+        overlay.style.display = 'block';
+        document.body.classList.add('downloading');
+    }
+}
+
+// Hide download overlay
+function hideDownloadOverlay() {
+    const overlay = document.getElementById('download-overlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+        document.body.classList.remove('downloading');
     }
 }
