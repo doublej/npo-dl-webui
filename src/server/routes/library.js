@@ -173,3 +173,52 @@ export async function handleStreamVideo(req, res) {
   }
 }
 
+export async function handleGetRecentDownloads(req, res) {
+  try {
+    const METADATA_DIR = join(__dirname, '../../../videos/metadata');
+    const entries = await readdir(VIDEOS_DIR, { withFileTypes: true });
+    const files = [];
+
+    for (const entry of entries) {
+      if (entry.isFile() && (entry.name.endsWith('.mkv') || entry.name.endsWith('.mp4'))) {
+        const fullPath = join(VIDEOS_DIR, entry.name);
+        const info = await stat(fullPath);
+
+        let metadata = {};
+        const baseName = entry.name.replace(/\.(mkv|mp4)$/, '');
+        const metadataPath = join(METADATA_DIR, `${baseName}.json`);
+        if (existsSync(metadataPath)) {
+          try {
+            const metadataContent = readFileSync(metadataPath, 'utf-8');
+            metadata = JSON.parse(metadataContent);
+          } catch (_) {}
+        }
+
+        files.push({
+          name: entry.name,
+          size: info.size,
+          mtime: info.mtimeMs,
+          metadata: {
+            title: metadata.title || baseName,
+            episodeNumber: metadata.episodeNumber,
+            seasonNumber: metadata.seasonNumber,
+            seriesTitle: metadata.seriesTitle,
+            description: metadata.description,
+            airing: metadata.airing,
+            duration: metadata.duration,
+            thumbnail: metadata.thumbnail,
+          },
+        });
+      }
+    }
+
+    // Sort by modification time (most recent first) and take the 4 most recent
+    files.sort((a, b) => b.mtime - a.mtime);
+    const recentFiles = files.slice(0, 4);
+
+    sendOk(res, { files: recentFiles });
+  } catch (error) {
+    sendFail(res, error.message, 500);
+  }
+}
+

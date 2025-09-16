@@ -6,7 +6,7 @@ import { dirname } from 'node:path';
 import { initializeEnv, getConfig } from '../config/env.js';
 import { initWebSocketServer, simulateDownloadProgress } from './websocket.js';
 import { handleDownloadEpisode, handleDownloadShow, handleDownloadSeason, handleBatchDownload, handleStatus } from './routes/downloads.js';
-import { handleGetShowsHierarchy, handleListDownloads, handleStreamVideo } from './routes/library.js';
+import { handleGetShowsHierarchy, handleListDownloads, handleStreamVideo, handleGetRecentDownloads } from './routes/library.js';
 import { handleGetConfig, handleUpdateConfig, handleTestConnection, handleGetProfiles, handleSetProfile } from './routes/config.js';
 import { sendFail } from './http/response.js';
 import { ensureVideoDirectories } from '../lib/utils/fs.js';
@@ -47,14 +47,26 @@ async function serveStatic(req, res) {
   try {
     // Check if this is a client-side route
     const urlPath = req.url.split('?')[0]; // Remove query string
-    const isClientRoute = clientRoutes.includes(urlPath);
 
-    // Serve index.html for client-side routes or default root
+    // Determine the file path
     let filePath;
-    if (isClientRoute) {
-      filePath = join(PUBLIC_DIR, 'index.html');
+
+    // Check if this is a request for a static file (has extension)
+    if (extname(urlPath)) {
+      // Serve the actual file
+      filePath = join(PUBLIC_DIR, urlPath);
     } else {
-      filePath = join(PUBLIC_DIR, req.url === '/' ? 'index.html' : req.url);
+      // Check if it's a downloads deep link or client route
+      const isDownloadsDeepLink = urlPath.startsWith('/downloads');
+      const isClientRoute = clientRoutes.includes(urlPath) || isDownloadsDeepLink;
+
+      if (isClientRoute || urlPath === '/') {
+        // Serve index.html for client-side routes
+        filePath = join(PUBLIC_DIR, 'index.html');
+      } else {
+        // Default to trying the URL path
+        filePath = join(PUBLIC_DIR, urlPath);
+      }
     }
 
     const ext = extname(filePath);
@@ -109,6 +121,8 @@ const server = createServer(async (req, res) => {
     await handleStatus(req, res);
   } else if (path === '/api/downloads' && req.method === 'GET') {
     await handleListDownloads(req, res);
+  } else if (path === '/api/downloads/recent' && req.method === 'GET') {
+    await handleGetRecentDownloads(req, res);
   } else if (path === '/api/shows' && req.method === 'GET') {
     await handleGetShowsHierarchy(req, res);
   } else if (path === '/api/config' && req.method === 'GET') {

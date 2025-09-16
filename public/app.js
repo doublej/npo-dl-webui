@@ -11,6 +11,302 @@ const activeDownloads = new Map();
 let ws = null;
 let wsReconnectTimer = null;
 
+// Video overlay functionality
+function initVideoOverlay() {
+    // Create video overlay structure with ambilight layers
+    const overlay = document.createElement('div');
+    overlay.className = 'video-overlay';
+    overlay.innerHTML = `
+        <div class="video-close"></div>
+        <div class="ambilight-container">
+            <!-- Multiple ambilight layers for depth -->
+            <div class="ambilight-layer ambilight-layer-1"></div>
+            <div class="ambilight-layer ambilight-layer-2"></div>
+            <div class="ambilight-layer ambilight-layer-3"></div>
+            <div class="ambilight-layer ambilight-layer-4"></div>
+            <div class="video-container">
+                <video id="videoPlayer" controls></video>
+                <div class="video-controls"></div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    // Create trigger button
+    const trigger = document.createElement('button');
+    trigger.className = 'video-trigger';
+    trigger.setAttribute('aria-label', 'Open video player');
+    document.body.appendChild(trigger);
+
+    // Event listeners
+    trigger.addEventListener('click', () => openVideoPlayer());
+    overlay.querySelector('.video-close').addEventListener('click', () => closeVideoPlayer());
+
+    // Close on escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && overlay.classList.contains('active')) {
+            closeVideoPlayer();
+        }
+    });
+
+    // Close on overlay click (not video)
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            closeVideoPlayer();
+        }
+    });
+}
+
+function openVideoPlayer(videoUrl = null) {
+    const overlay = document.querySelector('.video-overlay');
+    const video = document.getElementById('videoPlayer');
+    const container = document.querySelector('.video-container');
+
+    if (videoUrl) {
+        video.src = videoUrl;
+    }
+
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    // Remove existing listeners to prevent duplicates
+    video.onplay = null;
+    video.onpause = null;
+    video.onended = null;
+
+    // Add playing class and start ambilight when video plays
+    video.onplay = () => {
+        overlay.classList.add('playing');
+        container.classList.add('playing');
+        updateAmbilightColors();
+    };
+
+    // Stop ambilight when paused
+    video.onpause = () => {
+        overlay.classList.remove('playing');
+        container.classList.remove('playing');
+        stopAmbilight();
+    };
+
+    // Stop ambilight when video ends
+    video.onended = () => {
+        overlay.classList.remove('playing');
+        container.classList.remove('playing');
+        stopAmbilight();
+    };
+}
+
+function closeVideoPlayer() {
+    const overlay = document.querySelector('.video-overlay');
+    const video = document.getElementById('videoPlayer');
+
+    overlay.classList.remove('active');
+    document.body.style.overflow = '';
+    video.pause();
+    video.src = '';
+
+    // Stop ambilight effect
+    stopAmbilight();
+
+    // Reset colors to default
+    const container = document.querySelector('.ambilight-container');
+    if (container) {
+        container.style.setProperty('--ambilight-top', '#ff6b00');
+        container.style.setProperty('--ambilight-bottom', '#ff8533');
+        container.style.setProperty('--ambilight-left', '#ff6b00');
+        container.style.setProperty('--ambilight-right', '#ff8533');
+    }
+}
+
+// Extract dominant colors for ambilight effect
+let ambilightInterval = null;
+
+function updateAmbilightColors() {
+    const video = document.getElementById('videoPlayer');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    // Set canvas size for sampling (smaller = faster)
+    canvas.width = 100;
+    canvas.height = 56;
+
+    function extractColors() {
+        if (!video || video.paused || video.ended) {
+            stopAmbilight();
+            return;
+        }
+
+        try {
+            // Draw current video frame to canvas
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Get image data
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+            // Extract colors from video edges (like real ambilight)
+            const topEdgeColor = getEdgeColor(imageData, 'top');
+            const bottomEdgeColor = getEdgeColor(imageData, 'bottom');
+            const leftEdgeColor = getEdgeColor(imageData, 'left');
+            const rightEdgeColor = getEdgeColor(imageData, 'right');
+
+            // Apply colors to ambilight container
+            const container = document.querySelector('.ambilight-container');
+            if (container) {
+                // Set CSS variables for each edge
+                container.style.setProperty('--ambilight-top', topEdgeColor);
+                container.style.setProperty('--ambilight-bottom', bottomEdgeColor);
+                container.style.setProperty('--ambilight-left', leftEdgeColor);
+                container.style.setProperty('--ambilight-right', rightEdgeColor);
+            }
+        } catch (error) {
+            console.error('Ambilight extraction error:', error);
+        }
+    }
+
+    // Start extraction at 24fps for smoother performance
+    stopAmbilight(); // Clear any existing interval
+    ambilightInterval = setInterval(extractColors, 1000 / 24);
+    extractColors(); // Run immediately
+}
+
+// Get average color from video edge
+function getEdgeColor(imageData, edge) {
+    const data = imageData.data;
+    const width = imageData.width;
+    const height = imageData.height;
+
+    let r = 0, g = 0, b = 0;
+    let sampleCount = 0;
+
+    // Sample pixels from the specified edge
+    if (edge === 'top') {
+        // Sample first 3 rows
+        for (let y = 0; y < 3; y++) {
+            for (let x = 0; x < width; x += 2) {
+                const idx = (y * width + x) * 4;
+                r += data[idx];
+                g += data[idx + 1];
+                b += data[idx + 2];
+                sampleCount++;
+            }
+        }
+    } else if (edge === 'bottom') {
+        // Sample last 3 rows
+        for (let y = height - 3; y < height; y++) {
+            for (let x = 0; x < width; x += 2) {
+                const idx = (y * width + x) * 4;
+                r += data[idx];
+                g += data[idx + 1];
+                b += data[idx + 2];
+                sampleCount++;
+            }
+        }
+    } else if (edge === 'left') {
+        // Sample first 3 columns
+        for (let x = 0; x < 3; x++) {
+            for (let y = 0; y < height; y += 2) {
+                const idx = (y * width + x) * 4;
+                r += data[idx];
+                g += data[idx + 1];
+                b += data[idx + 2];
+                sampleCount++;
+            }
+        }
+    } else if (edge === 'right') {
+        // Sample last 3 columns
+        for (let x = width - 3; x < width; x++) {
+            for (let y = 0; y < height; y += 2) {
+                const idx = (y * width + x) * 4;
+                r += data[idx];
+                g += data[idx + 1];
+                b += data[idx + 2];
+                sampleCount++;
+            }
+        }
+    }
+
+    if (sampleCount === 0) {
+        return 'rgb(255, 107, 0)'; // Fallback to NPO orange
+    }
+
+    // Calculate average
+    r = Math.round(r / sampleCount);
+    g = Math.round(g / sampleCount);
+    b = Math.round(b / sampleCount);
+
+    // Boost saturation and brightness for more vibrant edge glow
+    const hsl = rgbToHsl(r, g, b);
+    hsl[1] = Math.min(100, hsl[1] * 1.8); // Increase saturation significantly
+    hsl[2] = Math.min(80, hsl[2] * 1.3); // Increase lightness
+    const rgb = hslToRgb(hsl[0], hsl[1], hsl[2]);
+
+    return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+}
+
+function stopAmbilight() {
+    if (ambilightInterval) {
+        clearInterval(ambilightInterval);
+        ambilightInterval = null;
+    }
+}
+
+
+// Helper functions for color conversion
+function rgbToHsl(r, g, b) {
+    r /= 255;
+    g /= 255;
+    b /= 255;
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h, s, l = (max + min) / 2;
+
+    if (max === min) {
+        h = s = 0;
+    } else {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
+        switch (max) {
+            case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+            case g: h = ((b - r) / d + 2) / 6; break;
+            case b: h = ((r - g) / d + 4) / 6; break;
+        }
+    }
+
+    return [h * 360, s * 100, l * 100];
+}
+
+function hslToRgb(h, s, l) {
+    h /= 360;
+    s /= 100;
+    l /= 100;
+
+    let r, g, b;
+
+    if (s === 0) {
+        r = g = b = l;
+    } else {
+        const hue2rgb = (p, q, t) => {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1/6) return p + (q - p) * 6 * t;
+            if (t < 1/2) return q;
+            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+            return p;
+        };
+
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+    }
+
+    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+
 // Initialize WebSocket connection
 function initWebSocket() {
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -524,7 +820,7 @@ async function loadTabContent(tabName) {
     // Only load if not already loaded
     if (!loadedTabs.has(tabName)) {
         try {
-            const response = await fetch(`tabs/${tabName}-tab.html`);
+            const response = await fetch(`/tabs/${tabName}-tab.html`);
             if (response.ok) {
                 const html = await response.text();
                 tabElement.innerHTML = html;
@@ -547,7 +843,8 @@ async function loadTabContent(tabName) {
 async function attachTabEventListeners(tabName) {
     switch(tabName) {
         case 'home':
-            // No specific event listeners needed for home tab
+            // Load recent downloads
+            loadRecentDownloads();
             break;
         case 'episode':
             const episodeForm = document.getElementById('episode-form');
@@ -643,6 +940,10 @@ const routes = {
 
 // Get route from path
 function getRouteFromPath(path) {
+    // Handle deep links for downloads
+    if (path.startsWith('/downloads')) {
+        return 'downloads';
+    }
     return routes[path] || 'home';
 }
 
@@ -691,6 +992,23 @@ async function navigateToTab(tabName, pushState = true) {
 // Handle browser back/forward buttons
 window.addEventListener('popstate', async (event) => {
     const tabName = event.state?.tab || getRouteFromPath(window.location.pathname);
+
+    // If returning to downloads page, restore navigation state from URL or history state
+    if (tabName === 'downloads' && window.location.pathname.startsWith('/downloads')) {
+        if (event.state?.navigationState) {
+            // Restore from history state
+            navigationState.level = event.state.navigationState.level;
+            navigationState.currentShow = event.state.navigationState.currentShow;
+            navigationState.currentSeason = event.state.navigationState.currentSeason;
+        } else {
+            // Parse from URL
+            const parsedState = parseDownloadsURL(window.location.pathname);
+            navigationState.level = parsedState.level;
+            navigationState.currentShow = parsedState.currentShow;
+            navigationState.currentSeason = parsedState.currentSeason;
+        }
+    }
+
     await navigateToTab(tabName, false);
 });
 
@@ -822,7 +1140,6 @@ function attachDownloadsEventListeners() {
             if (episode) {
                 const episodeData = JSON.parse(episode);
                 playVideo(encodeURIComponent(episodeData.filename), episodeData.title);
-                document.getElementById('player-section').style.display = 'block';
             }
         });
     }
@@ -1364,6 +1681,7 @@ function navigateToShows() {
     navigationState.level = 'shows';
     navigationState.currentShow = null;
     navigationState.currentSeason = null;
+    updateDownloadsURL();
     loadShowsHierarchy();
     hideEpisodeDetails();
 }
@@ -1372,6 +1690,7 @@ function navigateToSeasons(showTitle) {
     navigationState.level = 'seasons';
     navigationState.currentShow = showTitle;
     navigationState.currentSeason = null;
+    updateDownloadsURL();
     loadShowsHierarchy();
     hideEpisodeDetails();
 }
@@ -1380,15 +1699,80 @@ function navigateToEpisodes(showTitle, seasonNumber) {
     navigationState.level = 'episodes';
     navigationState.currentShow = showTitle;
     navigationState.currentSeason = seasonNumber;
+    updateDownloadsURL();
     loadShowsHierarchy();
     hideEpisodeDetails();
+}
+
+// Update URL for downloads page navigation
+function updateDownloadsURL() {
+    if (window.location.pathname.startsWith('/downloads')) {
+        let newPath = '/downloads';
+
+        if (navigationState.currentShow) {
+            // Encode the show title for URL safety
+            const encodedShow = encodeURIComponent(navigationState.currentShow);
+            newPath += `/${encodedShow}`;
+
+            if (navigationState.currentSeason) {
+                newPath += `/season-${navigationState.currentSeason}`;
+            }
+        }
+
+        // Update URL without triggering popstate
+        window.history.replaceState({
+            tab: 'downloads',
+            navigationState: {
+                level: navigationState.level,
+                currentShow: navigationState.currentShow,
+                currentSeason: navigationState.currentSeason
+            }
+        }, '', newPath);
+    }
+}
+
+// Parse downloads deep link URL
+function parseDownloadsURL(pathname) {
+    const parts = pathname.split('/').filter(p => p);
+
+    if (parts.length === 1 && parts[0] === 'downloads') {
+        // Just /downloads - show all shows
+        return {
+            level: 'shows',
+            currentShow: null,
+            currentSeason: null
+        };
+    } else if (parts.length === 2) {
+        // /downloads/show-name - show seasons
+        return {
+            level: 'seasons',
+            currentShow: decodeURIComponent(parts[1]),
+            currentSeason: null
+        };
+    } else if (parts.length === 3) {
+        // /downloads/show-name/season-1 - show episodes
+        const seasonMatch = parts[2].match(/season-(\d+)/);
+        if (seasonMatch) {
+            return {
+                level: 'episodes',
+                currentShow: decodeURIComponent(parts[1]),
+                currentSeason: parseInt(seasonMatch[1])
+            };
+        }
+    }
+
+    // Default to shows view
+    return {
+        level: 'shows',
+        currentShow: null,
+        currentSeason: null
+    };
 }
 
 // Show episode details
 function showEpisodeDetails(episode, event) {
     document.getElementById('episode-details').style.display = 'block';
     document.getElementById('no-selection').style.display = 'none';
-    document.getElementById('player-section').style.display = 'none';
 
     // Fill in episode details
     document.getElementById('episode-title').textContent = episode.title;
@@ -1404,7 +1788,6 @@ function showEpisodeDetails(episode, event) {
     // Store current episode for play button
     document.getElementById('play-episode').onclick = () => {
         playVideo(encodeURIComponent(episode.filename), episode.title);
-        document.getElementById('player-section').style.display = 'block';
     };
 
     // Highlight selected episode
@@ -1417,37 +1800,63 @@ function showEpisodeDetails(episode, event) {
 }
 
 function hideEpisodeDetails() {
-    document.getElementById('episode-details').style.display = 'none';
-    document.getElementById('no-selection').style.display = 'block';
-    document.getElementById('player-section').style.display = 'none';
+    const episodeDetails = document.getElementById('episode-details');
+    const noSelection = document.getElementById('no-selection');
+
+    if (episodeDetails) {
+        episodeDetails.style.display = 'none';
+    }
+    if (noSelection) {
+        noSelection.style.display = 'block';
+    }
 }
 
 // Load list of downloaded episodes (fallback/compatibility)
 async function loadDownloadedList() {
-    // Now loads hierarchical view
-    navigationState.level = 'shows';
-    navigationState.currentShow = null;
-    navigationState.currentSeason = null;
+    // Parse URL to restore navigation state
+    if (window.location.pathname.startsWith('/downloads')) {
+        const parsedState = parseDownloadsURL(window.location.pathname);
+        navigationState.level = parsedState.level;
+        navigationState.currentShow = parsedState.currentShow;
+        navigationState.currentSeason = parsedState.currentSeason;
+    } else {
+        // Default state
+        navigationState.level = 'shows';
+        navigationState.currentShow = null;
+        navigationState.currentSeason = null;
+    }
     navigationState.showsData = null;
     await loadShowsHierarchy();
 }
 
 function playVideo(encodedFilename, displayName) {
-    const video = document.getElementById('video-player');
-    const nowPlaying = document.getElementById('now-playing');
     const src = `/videos/${encodedFilename}`;
-    // If a source element exists, reuse; otherwise set src directly on video
-    video.src = src;
-    video.load();
-    video.play().catch(() => {/* autoplay might be blocked; ignore */});
+
+    // Use the new video overlay player
+    openVideoPlayer(src);
+
+    // Update the video player title if needed
     if (displayName) {
-        nowPlaying.style.display = 'block';
-        nowPlaying.textContent = `Now playing: ${displayName}`;
+        const overlay = document.querySelector('.video-overlay');
+        if (overlay) {
+            // Add title to overlay if not exists
+            let titleEl = overlay.querySelector('.video-title');
+            if (!titleEl) {
+                titleEl = document.createElement('div');
+                titleEl.className = 'video-title';
+                const container = overlay.querySelector('.video-container');
+                container.insertBefore(titleEl, container.firstChild);
+            }
+            titleEl.textContent = displayName;
+        }
     }
 }
 
 // Initialize the first tab on page load
 document.addEventListener('DOMContentLoaded', async () => {
+    // Initialize video overlay
+    initVideoOverlay();
+
     // Determine initial tab from URL
     const initialTab = getRouteFromPath(window.location.pathname);
 
@@ -1463,3 +1872,67 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Check for existing downloads
     checkExistingDownloads();
 });
+
+// Load recent downloads for home page
+async function loadRecentDownloads() {
+    try {
+        const response = await fetch(`${API_BASE}/downloads/recent`);
+        const data = await response.json();
+
+        const section = document.getElementById('recent-downloads-section');
+        const grid = document.getElementById('recent-downloads-grid');
+
+        if (!section || !grid) return;
+
+        if (data.success && data.data?.files?.length > 0) {
+            const files = data.data.files;
+
+            // Show the section
+            section.style.display = 'block';
+
+            // Create video cards
+            grid.innerHTML = files.map(file => {
+                const meta = file.metadata;
+                const title = meta.seriesTitle ? `${meta.seriesTitle} - ${meta.title}` : meta.title;
+                const subtitle = meta.episodeNumber ? `Episode ${meta.episodeNumber}` : '';
+                const date = new Date(file.mtime);
+                const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+
+                return `
+                    <div class="video-card" data-filename="${encodeURIComponent(file.name)}" data-title="${encodeURIComponent(title)}">
+                        <div class="video-card-thumbnail">
+                            <div class="video-card-play-overlay">
+                                <svg class="play-icon" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M8 5v14l11-7z"/>
+                                </svg>
+                            </div>
+                            <div class="video-card-duration">${meta.duration || 'N/A'}</div>
+                        </div>
+                        <div class="video-card-info">
+                            <div class="video-card-title">${title}</div>
+                            <div class="video-card-subtitle">${subtitle}</div>
+                            <div class="video-card-meta">
+                                <span>${date.toLocaleDateString()}</span>
+                                <span>${sizeMB} MB</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Add click handlers
+            grid.querySelectorAll('.video-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const filename = card.getAttribute('data-filename');
+                    const title = decodeURIComponent(card.getAttribute('data-title'));
+                    playVideo(filename, title);
+                });
+            });
+        } else {
+            // Hide the section if no downloads
+            section.style.display = 'none';
+        }
+    } catch (error) {
+        logger.error('Failed to load recent downloads', error);
+    }
+}

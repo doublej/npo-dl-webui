@@ -30,7 +30,7 @@
 body {
   font-family: "NPO Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: var(--npo-text-primary);
-  background: linear-gradient(180deg, var(--npo-background-secondary) 0%, var(--npo-background-primary) 240px, var(--npo-background-primary) 100%);
+  background: rgb(5, 21, 44);
   margin: 0;
   padding: 0 !important; /* override base stylesheet padding */
 }
@@ -65,9 +65,10 @@ header.topbar::before {
   position: absolute;
   top: 0;
   left: 0;
-  width: 400px;
-  height: calc(100% + 1px);
-  background: linear-gradient(90deg, var(--npo-background-secondary) 30%, transparent 100%);
+  width: 600px;
+  padding: 0 0 50px 0;
+  height: calc(100% + 20px);
+  background: linear-gradient(90deg, rgb(10, 26, 48) 50%, transparent 100%);
   pointer-events: none;
   z-index: 1;
 }
@@ -79,9 +80,9 @@ header.topbar::after {
   position: absolute;
   top: 0;
   right: 0;
-  width: 400px;
-  height: calc(100% + 1px);
-  background: linear-gradient(270deg, var(--npo-background-secondary) 30%, transparent 100%);
+  width: 600px;
+  height: calc(100% + 20px);
+  background: linear-gradient(270deg, rgb(10, 26, 48) 50%, transparent 100%);
   pointer-events: none;
   z-index: 1;
 }
@@ -90,12 +91,13 @@ header.topbar::after {
   display: grid;
   grid-template-columns: auto minmax(max-content, 1fr);
   align-items: center;
-  gap: var(--npo-spacing-m);
+  gap: var(--npo-spacing-l);
   max-width: 1280px;
   margin-inline: auto;
-  padding: var(--npo-spacing-l) var(--npo-spacing-l);
+  padding: calc(var(--npo-spacing-l) * 1.75) var(--npo-spacing-l);
   position: relative;
   z-index: 2;
+  min-height: 90px;
   /* Bottom border gradient separator */
 }
 .topbar__inner::after {
@@ -152,8 +154,16 @@ header.topbar::after {
 }
 .brand__logo {
   display: block;
-  height: 40px;
+  height: 65px;
   width: auto;
+  animation: logoSlideIn 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  opacity: 0;
+}
+.brand__title {
+  animation: titleFadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0.3s forwards;
+  opacity: 0;
+  font-size: 22px;
+  font-weight: 700;
 }
 
 /* Premium status pill in topbar with segmented metrics */
@@ -164,6 +174,8 @@ header.topbar::after {
   top: 58px;
   right: 0;
   display: inline-flex;
+  animation: statusSlideIn 0.8s cubic-bezier(0.4, 0, 0.2, 1) 1.2s forwards;
+  opacity: 0;
   align-items: stretch;
   padding: 12px 12px;
   border-radius: 22px;
@@ -382,7 +394,7 @@ header.topbar::after {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 12px;
   justify-self: center;
   width: max-content;
   min-width: max-content;
@@ -392,18 +404,38 @@ header.topbar::after {
 .primary-nav .tab-button {
   font-family: var(--npo-font-family);
   color: rgba(255, 255, 255, 0.85);
-  padding: 8px 16px;
+  padding: 10px 20px;
   border: none;
   border-radius: 8px;
   font-weight: 600;
   flex-shrink: 0;
-  font-size: 14px;
+  font-size: 15px;
   letter-spacing: 0.01em;
   display: inline-flex;
   align-items: center;
   background: transparent;
   transition: all 0.2s ease;
   position: relative;
+  opacity: 0;
+  animation: menuItemSlideIn 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+.primary-nav .tab-button:nth-child(1) {
+  animation-delay: 0.5s;
+}
+.primary-nav .tab-button:nth-child(2) {
+  animation-delay: 0.6s;
+}
+.primary-nav .tab-button:nth-child(3) {
+  animation-delay: 0.7s;
+}
+.primary-nav .tab-button:nth-child(4) {
+  animation-delay: 0.8s;
+}
+.primary-nav .tab-button:nth-child(5) {
+  animation-delay: 0.9s;
+}
+.primary-nav .tab-button:nth-child(6) {
+  animation-delay: 1s;
 }
 .primary-nav .tab-button .tab-button__label {
   font-weight: 500;
@@ -634,11 +666,12 @@ footer > * {
 /* Light grey backgrounds for main content panels */
 .tab-content {
   margin-top: var(--npo-spacing-m);
-  background: var(--npo-neutral-300);
   color: var(--npo-text-invert);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   padding: var(--npo-spacing-xl);
-  border-radius: var(--npo-radius-s);
+  border-radius: var(--npo-radius-l);
+  animation: contentFadeIn 1s cubic-bezier(0.4, 0, 0.2, 1) 0.8s forwards;
+  opacity: 0;
 }
 
 /* Remove default tabs underline from base CSS if present */
@@ -720,14 +753,355 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 1.75rem;
   font-weight: 700;
   letter-spacing: 0.5px;
-  opacity: 0.95;
   max-width: 1280px;
   margin-inline: auto;
+  animation: headingSlideIn 0.8s cubic-bezier(0.4, 0, 0.2, 1) 1.4s forwards;
+  opacity: 0;
 }
 
 p, ul, ol {
   margin-block-start: var(--npo-spacing-l);
   margin-block-end: 0;
+}
+
+/* Animation keyframes */
+@keyframes logoSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes titleFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes menuItemSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes contentFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes statusSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes headingSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 0.95;
+    transform: translateY(0);
+  }
+}
+/* Video Player Overlay with Ambilight */
+.video-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.25); /* Much less opacity to show page */
+  backdrop-filter: blur(4px); /* Lighter blur */
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.video-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+.video-overlay {
+  /* Close button */
+}
+.video-overlay .video-close {
+  position: absolute;
+  top: 30px;
+  right: 30px;
+  width: 50px;
+  height: 50px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 10001;
+}
+.video-overlay .video-close::before, .video-overlay .video-close::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 24px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.8);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.video-overlay .video-close::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+.video-overlay .video-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: rotate(90deg);
+}
+
+/* Ambilight container that holds everything */
+.ambilight-container {
+  position: relative;
+  width: 70%; /* Smaller video to show more background */
+  max-width: 1100px;
+  aspect-ratio: 16/9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Individual ambilight layers for edge glow effect */
+.ambilight-layer {
+  position: absolute;
+  pointer-events: none;
+  transition: opacity 0.5s ease, filter 0.5s ease;
+}
+
+/* Top edge glow - starts at video edge */
+.ambilight-layer-1 {
+  top: -10px; /* Start close to video edge */
+  left: -10px;
+  right: -10px;
+  height: 250px;
+  background: radial-gradient(ellipse at center top, var(--ambilight-top, #ff6b00) 0%, var(--ambilight-top, #ff6b00) 10%, transparent 80%);
+  filter: blur(40px); /* Less blur for sharper edge definition */
+  opacity: 0;
+  animation: ambilightFadeIn 0.8s ease forwards;
+  z-index: 1;
+  transform-origin: center top;
+}
+
+/* Bottom edge glow - starts at video edge */
+.ambilight-layer-2 {
+  bottom: -10px; /* Start close to video edge */
+  left: -10px;
+  right: -10px;
+  height: 250px;
+  background: radial-gradient(ellipse at center bottom, var(--ambilight-bottom, #ff8533) 0%, var(--ambilight-bottom, #ff8533) 10%, transparent 80%);
+  filter: blur(40px);
+  opacity: 0;
+  animation: ambilightFadeIn 0.8s ease 0.1s forwards;
+  z-index: 1;
+  transform-origin: center bottom;
+}
+
+/* Left edge glow - starts at video edge */
+.ambilight-layer-3 {
+  left: -10px; /* Start close to video edge */
+  top: -10px;
+  bottom: -10px;
+  width: 250px;
+  background: radial-gradient(ellipse at left center, var(--ambilight-left, #ff6b00) 0%, var(--ambilight-left, #ff6b00) 10%, transparent 80%);
+  filter: blur(40px);
+  opacity: 0;
+  animation: ambilightFadeIn 0.8s ease 0.2s forwards;
+  z-index: 1;
+  transform-origin: left center;
+}
+
+/* Right edge glow - starts at video edge */
+.ambilight-layer-4 {
+  right: -10px; /* Start close to video edge */
+  top: -10px;
+  bottom: -10px;
+  width: 250px;
+  background: radial-gradient(ellipse at right center, var(--ambilight-right, #ff8533) 0%, var(--ambilight-right, #ff8533) 10%, transparent 80%);
+  filter: blur(40px);
+  opacity: 0;
+  animation: ambilightFadeIn 0.8s ease 0.3s forwards;
+  z-index: 1;
+  transform-origin: right center;
+}
+
+/* When video is playing, increase intensity with gradual falloff */
+.video-overlay.playing .ambilight-layer-1 {
+  opacity: 1 !important;
+  filter: blur(60px); /* More focused blur */
+  transform: scaleY(1.3); /* Extend glow slightly */
+}
+
+.video-overlay.playing .ambilight-layer-2 {
+  opacity: 1 !important;
+  filter: blur(60px);
+  transform: scaleY(1.3);
+}
+
+.video-overlay.playing .ambilight-layer-3 {
+  opacity: 1 !important;
+  filter: blur(60px);
+  transform: scaleX(1.3);
+}
+
+.video-overlay.playing .ambilight-layer-4 {
+  opacity: 1 !important;
+  filter: blur(60px);
+  transform: scaleX(1.3);
+}
+
+.video-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 16/9;
+  border-radius: 24px; /* Doubled from 12px */
+  overflow: hidden;
+  animation: videoFadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  z-index: 10;
+}
+.video-container video,
+.video-container iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 24px; /* Doubled from 12px */
+  background: #000;
+  box-shadow: 0 0 60px rgba(255, 107, 0, 0.3), 0 20px 80px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+.video-container {
+  /* Video title overlay */
+}
+.video-container .video-title {
+  position: absolute;
+  top: -80px;
+  left: 0;
+  right: 0;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+  text-shadow: 0 2px 40px rgba(0, 0, 0, 0.9), 0 0 80px var(--ambilight-color-1, #ff6b00);
+  letter-spacing: 0.5px;
+  animation: titleSlideDown 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0.3s forwards;
+  opacity: 0;
+  z-index: 15;
+}
+.video-container {
+  /* Video controls overlay */
+}
+.video-container .video-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 20px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.video-container .video-controls:hover {
+  opacity: 1;
+}
+
+/* Dynamic ambilight effect based on video */
+.video-container.playing::before {
+  animation: ambilightPulse 2s ease-in-out infinite;
+}
+.video-container.playing::after {
+  animation: ambilightRotate 6s linear infinite;
+}
+
+@keyframes videoFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes titleSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes ambilightFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.7; /* Increased for better visibility with lighter overlay */
+  }
+}
+/* Trigger button for video player */
+.video-trigger {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #ff6b00 0%, #ff8533 100%);
+  border-radius: 50%;
+  box-shadow: 0 4px 20px rgba(255, 107, 0, 0.4), 0 0 40px rgba(255, 107, 0, 0.2);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.video-trigger::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 20px solid white;
+  border-top: 12px solid transparent;
+  border-bottom: 12px solid transparent;
+  margin-left: 4px;
+}
+.video-trigger:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 30px rgba(255, 107, 0, 0.5), 0 0 60px rgba(255, 107, 0, 0.3);
+}
+.video-trigger:active {
+  transform: scale(0.95);
 }
 
 /*# sourceMappingURL=theme-npo.css.map */

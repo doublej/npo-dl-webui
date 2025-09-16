@@ -1,51 +1,57 @@
-<h2>Home</h2>
+<h2>Welcome to NPO Downloader</h2>
 <div class="tab-content">
     <div class="home-container">
-        <h1>Welcome to NPO Downloader</h1>
 
-        <div class="intro-section">
-            <p>Download your favorite NPO Start content for offline viewing.</p>
+        <!-- Recent Downloads Section -->
+        <div id="recent-downloads-section" class="recent-downloads-section" style="display: none;">
+            <div class="recent-downloads-header">
+                <h3>Recent Downloads</h3>
+                <a href="/downloads" class="view-all-link" onclick="navigateToTab('downloads'); return false;">View All →</a>
+            </div>
+            <div id="recent-downloads-grid" class="recent-downloads-grid">
+                <!-- Video cards will be inserted here -->
+            </div>
         </div>
 
         <div class="features-grid">
             <div class="feature-card">
-                <h3>Single Episode</h3>
-                <p>Download individual episodes by entering the NPO Start URL or episode ID.</p>
-                <ol>
-                    <li>Copy the URL from NPO Start</li>
-                    <li>Paste it in the Episode tab</li>
-                    <li>Click Download</li>
-                </ol>
+                <h3 class="feature-title">Single Episode</h3>
+                <p class="feature-desc">Download individual episodes by entering the NPO Start URL or episode ID.</p>
+                <div class="feature-steps">
+                    <div class="step-item">1. Copy the URL from NPO Start</div>
+                    <div class="step-item">2. Paste it in the Episode tab</div>
+                    <div class="step-item">3. Click Download</div>
+                </div>
             </div>
 
             <div class="feature-card">
-                <h3>Entire Show</h3>
-                <p>Download complete series with all available episodes.</p>
-                <ol>
-                    <li>Enter the show's URL or ID</li>
-                    <li>Select quality settings</li>
-                    <li>Download all episodes at once</li>
-                </ol>
+                <h3 class="feature-title">Entire Show</h3>
+                <p class="feature-desc">Download complete series with all available episodes.</p>
+                <div class="feature-steps">
+                    <div class="step-item">1. Enter the show's URL or ID</div>
+                    <div class="step-item">2. Select quality settings</div>
+                    <div class="step-item">3. Download all episodes at once</div>
+                </div>
             </div>
 
             <div class="feature-card">
-                <h3>Season</h3>
-                <p>Download specific seasons of your favorite shows.</p>
-                <ol>
-                    <li>Provide the show URL</li>
-                    <li>Select desired season</li>
-                    <li>Start downloading</li>
-                </ol>
+                <h3 class="feature-title">Season</h3>
+                <p class="feature-desc">Download specific seasons of your favorite shows.</p>
+                <div class="feature-steps">
+                    <div class="step-item">1. Provide the show URL</div>
+                    <div class="step-item">2. Select desired season</div>
+                    <div class="step-item">3. Start downloading</div>
+                </div>
             </div>
 
             <div class="feature-card">
-                <h3>Batch Download</h3>
-                <p>Queue multiple downloads at once.</p>
-                <ol>
-                    <li>Add multiple URLs (one per line)</li>
-                    <li>Configure download settings</li>
-                    <li>Process all downloads sequentially</li>
-                </ol>
+                <h3 class="feature-title">Batch Download</h3>
+                <p class="feature-desc">Queue multiple downloads at once.</p>
+                <div class="feature-steps">
+                    <div class="step-item">1. Add multiple URLs (one per line)</div>
+                    <div class="step-item">2. Configure download settings</div>
+                    <div class="step-item">3. Process all downloads sequentially</div>
+                </div>
             </div>
         </div>
 
@@ -56,22 +62,22 @@
                     <div class="step">
                         <span class="step-number">1</span>
                         <div class="step-content">
-                            <h4>Configure Settings</h4>
-                            <p>Go to the Settings tab to set up your download preferences, including video quality, subtitles, and download location.</p>
+                            <h4 class="step-title">Configure Settings</h4>
+                            <p class="step-desc">Go to the Settings tab to set up your download preferences, including video quality, subtitles, and download location.</p>
                         </div>
                     </div>
                     <div class="step">
                         <span class="step-number">2</span>
                         <div class="step-content">
-                            <h4>Find Content</h4>
-                            <p>Browse NPO Start and copy the URL of the content you want to download.</p>
+                            <h4 class="step-title">Find Content</h4>
+                            <p class="step-desc">Browse NPO Start and copy the URL of the content you want to download.</p>
                         </div>
                     </div>
                     <div class="step">
                         <span class="step-number">3</span>
                         <div class="step-content">
-                            <h4>Start Downloading</h4>
-                            <p>Choose the appropriate tab, paste your URL, and click download. Monitor progress in the Downloads tab.</p>
+                            <h4 class="step-title">Start Downloading</h4>
+                            <p class="step-desc">Choose the appropriate tab, paste your URL, and click download. Monitor progress in the Downloads tab.</p>
                         </div>
                     </div>
                 </div>
@@ -90,182 +96,3 @@
     </div>
 </div>
 
-<style>
-.home-container {
-    padding: 1.5rem;
-    max-width: 1200px;
-    margin: 0 auto;
-}
-
-.home-container h1 {
-    color: #1a1a2e;
-    margin-bottom: 0.75rem;
-    font-size: 1.75rem;
-    font-weight: 700;
-}
-
-.intro-section {
-    margin-bottom: 1.5rem;
-    font-size: 1rem;
-    color: #333;
-    font-weight: 400;
-}
-
-.features-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 1rem;
-    margin-bottom: 2rem;
-}
-
-.feature-card {
-    background: #ffffff;
-    border: 1px solid #d4d4d4;
-    border-radius: 6px;
-    padding: 1rem;
-    transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.feature-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-    border-color: #ff6000;
-}
-
-.feature-card h3 {
-    color: #ff6000;
-    margin-bottom: 0.5rem;
-    font-size: 1.1rem;
-    font-weight: 600;
-}
-
-.feature-card p {
-    color: #2c2c2c;
-    margin-bottom: 0.75rem;
-    font-size: 0.9rem;
-    font-weight: 400;
-    line-height: 1.4;
-}
-
-.feature-card ol {
-    color: #404040;
-    padding-left: 1.2rem;
-    font-size: 0.85rem;
-    line-height: 1.5;
-}
-
-.feature-card li {
-    margin-bottom: 0.3rem;
-}
-
-.info-sections {
-    display: grid;
-    grid-template-columns: 1.5fr 1fr;
-    gap: 1.5rem;
-    margin-top: 2rem;
-}
-
-.getting-started {
-    background: #f8f8f8;
-    border-radius: 6px;
-    padding: 1.25rem;
-    border: 1px solid #e0e0e0;
-}
-
-.getting-started h3 {
-    color: #1a1a2e;
-    margin-bottom: 1rem;
-    font-size: 1.2rem;
-    font-weight: 600;
-}
-
-.steps {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.step {
-    display: flex;
-    gap: 1rem;
-    align-items: flex-start;
-}
-
-.step-number {
-    background: #ff6000;
-    color: white;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    font-size: 0.9rem;
-    flex-shrink: 0;
-    margin-top: 2px;
-}
-
-.step-content h4 {
-    margin-bottom: 0.3rem;
-    color: #1a1a2e;
-    font-size: 1rem;
-    font-weight: 600;
-}
-
-.step-content p {
-    color: #2c2c2c;
-    font-size: 0.9rem;
-    line-height: 1.4;
-}
-
-.tips-section {
-    background: #fff5f0;
-    border-left: 3px solid #ff6000;
-    padding: 1.25rem;
-    border-radius: 6px;
-    height: fit-content;
-}
-
-.tips-section h3 {
-    color: #1a1a2e;
-    margin-bottom: 0.75rem;
-    font-size: 1.1rem;
-    font-weight: 600;
-}
-
-.tips-section ul {
-    list-style: none;
-    padding: 0;
-}
-
-.tips-section li {
-    position: relative;
-    padding-left: 1.25rem;
-    margin-bottom: 0.4rem;
-    color: #2c2c2c;
-    font-size: 0.9rem;
-    line-height: 1.4;
-}
-
-.tips-section li:before {
-    content: "•";
-    position: absolute;
-    left: 0;
-    color: #ff6000;
-    font-weight: bold;
-    font-size: 1rem;
-}
-
-/* Responsive layout */
-@media (max-width: 768px) {
-    .info-sections {
-        grid-template-columns: 1fr;
-        gap: 1rem;
-    }
-
-    .features-grid {
-        grid-template-columns: 1fr;
-    }
-}
-</style>
