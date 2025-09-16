@@ -11,7 +11,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "ui": "node src/server/index.js",
     "start": "node src/server/index.js",
-    "cli": "node src/cli/index.js"
+    "cli": "node src/cli/index.js",
+    "build:scss": "sass public/npo-base.scss public/npo-base.css && sass public/style.scss public/style.css && sass public/theme-npo.scss public/theme-npo.css",
+    "watch:scss": "sass --watch public:public"
   },
   "engines": {
     "node": ">=18.0.0",
@@ -25,5 +27,8 @@
     "fast-xml-parser": "^5.0.8",
     "puppeteer-core": "^24.3.0",
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "sass": "^1.83.0"
   }
 }

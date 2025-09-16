@@ -1,6 +1,8 @@
 // API base URL
-const API_BASE = 'http://localhost:3000/api';
-const WS_URL = 'ws://localhost:3000';
+const API_BASE = 'http://localhost:3001/api';
+const WS_URL = 'ws://localhost:3001';
+
+const logger = window.logger || console;
 
 // Active downloads tracking
 const activeDownloads = new Map();
@@ -15,13 +17,13 @@ function initWebSocket() {
         return; // Already connected
     }
 
-    console.log('Connecting to WebSocket...');
+    logger.debug('WebSocket', 'Connecting...');
     ws = new WebSocket(WS_URL);
 
     ws.onopen = () => {
-        console.log('WebSocket connected');
+        logger.info('WebSocket', 'Connected');
         clearTimeout(wsReconnectTimer);
-        updateTopbarStatus('Connected to server', 'success');
+        updateTopbarStatus({ message: 'Connected to server', type: 'success' });
     };
 
     ws.onmessage = (event) => {
@@ -29,21 +31,21 @@ function initWebSocket() {
             const data = JSON.parse(event.data);
             handleWebSocketMessage(data);
         } catch (error) {
-            console.error('Failed to parse WebSocket message:', error);
+            logger.error('WebSocket', 'Failed to parse message:', error);
         }
     };
 
     ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        logger.error('WebSocket', 'Connection error:', error);
     };
 
     ws.onclose = () => {
-        console.log('WebSocket disconnected');
-        updateTopbarStatus('Disconnected from server', 'warning');
+        logger.debug('WebSocket', 'Disconnected');
+        updateTopbarStatus({ message: 'Disconnected from server', type: 'warning' });
         // Attempt to reconnect after 3 seconds
         wsReconnectTimer = setTimeout(() => {
-            console.log('Attempting to reconnect WebSocket...');
-            updateTopbarStatus('Reconnecting...', 'info');
+            logger.debug('WebSocket', 'Reconnecting...');
+            updateTopbarStatus({ message: 'Reconnecting...', type: 'info' });
             initWebSocket();
         }, 3000);
     };
@@ -53,227 +55,777 @@ function initWebSocket() {
 function handleWebSocketMessage(data) {
     switch (data.type) {
         case 'connected':
-            console.log('WebSocket:', data.message);
-            updateTopbarStatus('Connected', 'success');
+            logger.debug('WebSocket', data.message);
+            updateTopbarStatus({ message: 'Connected', type: 'success' });
             break;
 
         case 'download_progress':
             updateDownloadProgress(data.downloadId, data.progress);
-            updateTopbarWithProgress(data.downloadId, data.progress);
+            updateDownloadTopbar({
+                downloadId: data.downloadId,
+                status: data.progress?.stage,
+                progress: data.progress,
+                data
+            });
             break;
 
         case 'download_status':
             updateDownloadStatus(data.downloadId, data.status, data);
-            updateTopbarWithStatus(data.downloadId, data.status, data);
+            updateDownloadTopbar({
+                downloadId: data.downloadId,
+                status: data.status,
+                data
+            });
             break;
 
         default:
-            console.log('Unknown WebSocket message type:', data.type);
+            logger.debug('WebSocket', 'Unknown message type:', data.type);
     }
 }
 
 // Update download progress
 function updateDownloadProgress(downloadId, progress) {
-    const download = activeDownloads.get(downloadId);
-    if (download) {
-        activeDownloads.set(downloadId, { ...download, progress });
-    }
+    const download = activeDownloads.get(downloadId) || { id: downloadId };
+    activeDownloads.set(downloadId, { ...download, progress });
 }
 
 // Update topbar status
-function updateTopbarStatus(message, type = 'info', progress = null) {
+function ensureTopbarElements(topbar) {
+    if (!topbar.dataset.enhanced) {
+        topbar.innerHTML = `
+            <div class="topbar-status__progress"></div>
+            <div class="topbar-status__content">
+                <div class="topbar-status__message" aria-live="polite"></div>
+                <div class="topbar-status__metrics" role="presentation"></div>
+            </div>
+        `;
+        topbar.dataset.enhanced = 'true';
+    }
+
+    return {
+        messageEl: topbar.querySelector('.topbar-status__message'),
+        metricsEl: topbar.querySelector('.topbar-status__metrics'),
+        progressEl: topbar.querySelector('.topbar-status__progress'),
+    };
+}
+
+function updateTopbarMetrics(metricsEl, metrics = []) {
+    const existing = new Map();
+    metricsEl.querySelectorAll('.status-metric').forEach((el) => {
+        existing.set(el.dataset.key, el);
+    });
+
+    metrics.forEach((metric, index) => {
+        const {
+            key,
+            label,
+            value,
+            weight = 'md',
+            fill = null,
+        } = metric;
+
+        if (!key) {
+            return;
+        }
+
+        let metricEl = existing.get(key);
+        if (!metricEl) {
+            metricEl = document.createElement('div');
+            metricEl.className = 'status-metric';
+            metricEl.dataset.key = key;
+            metricEl.innerHTML = `
+                <div class="status-metric__fill"></div>
+                <div class="status-metric__label"></div>
+                <div class="status-metric__value"></div>
+            `;
+            metricsEl.appendChild(metricEl);
+        } else {
+            existing.delete(key);
+        }
+
+        metricEl.dataset.weight = weight;
+        if (fill !== null && fill !== undefined) {
+            const fillValue = typeof fill === 'number' ? `${fill}%` : fill;
+            metricEl.style.setProperty('--metric-fill', fillValue);
+        } else {
+            metricEl.style.removeProperty('--metric-fill');
+        }
+
+        const labelEl = metricEl.querySelector('.status-metric__label');
+        const valueEl = metricEl.querySelector('.status-metric__value');
+        if (labelEl) {
+            labelEl.textContent = label || '';
+        }
+        if (valueEl) {
+            valueEl.textContent = value || '';
+        }
+
+        if (!metricEl.classList.contains('is-visible')) {
+            requestAnimationFrame(() => {
+                metricEl.classList.add('is-visible');
+            });
+        }
+    });
+
+    // Remove stale metrics with a fade-out animation
+    existing.forEach((el) => {
+        el.classList.remove('is-visible');
+        el.addEventListener('transitionend', () => {
+            el.remove();
+        }, { once: true });
+    });
+
+    metricsEl.classList.toggle('has-metrics', metrics.length > 0);
+}
+
+function updateTopbarStatus(state) {
     const topbar = document.getElementById('topbar-status');
-    if (topbar) {
-        topbar.textContent = message;
-        topbar.className = `topbar__status ${type}`;
+    if (!topbar) {
+        logger.warn('Topbar', 'Attempted to update topbar status but element was not found');
+        return;
+    }
 
-        // Set progress CSS variable if provided
-        if (progress !== null) {
-            topbar.style.setProperty('--progress', `${progress}%`);
-        } else {
-            topbar.style.removeProperty('--progress');
+    const {
+        message = '',
+        type = 'info',
+        progress = null,
+        metrics = [],
+    } = state || {};
+
+    logger.debug('Topbar', 'updateTopbarStatus', { message, type, progress, metricsCount: metrics.length });
+
+    const { messageEl, metricsEl, progressEl } = ensureTopbarElements(topbar);
+
+    topbar.className = `topbar__status ${type}`;
+    topbar.classList.toggle('has-progress', progress !== null);
+    topbar.classList.toggle('has-metrics', metrics.length > 0);
+
+    if (messageEl) {
+        messageEl.textContent = message;
+    }
+
+    if (progress !== null) {
+        const boundedProgress = Math.max(0, Math.min(100, progress));
+        topbar.style.setProperty('--progress', `${boundedProgress}%`);
+        if (progressEl) {
+            progressEl.style.setProperty('--progress-width', `${boundedProgress}%`);
         }
+    } else {
+        topbar.style.removeProperty('--progress');
+        if (progressEl) {
+            progressEl.style.removeProperty('--progress-width');
+        }
+    }
+
+    if (metricsEl) {
+        updateTopbarMetrics(metricsEl, metrics);
     }
 }
 
-// Update topbar with download progress
-function updateTopbarWithProgress(downloadId, progress) {
-    if (progress && progress.percentage !== undefined) {
-        let displayMessage = '';
-        const percentage = Math.round(progress.percentage);
+function updateDownloadTopbar({ downloadId, status, progress, data = {} }) {
+    const download = activeDownloads.get(downloadId);
+    const combinedData = { ...(download || {}), ...data };
+    logger.debug('Topbar', 'updateDownloadTopbar called', {
+        downloadId,
+        status,
+        stage: progress?.stage,
+        hasProgress: Boolean(progress),
+    });
+    const topbarState = deriveDownloadTopbarState({ status, progress, data: combinedData });
 
-        // Use custom message if provided, otherwise format based on stage
-        if (progress.message) {
-            displayMessage = progress.message;
-        } else {
-            switch (progress.stage) {
-                case 'downloading_video':
-                    displayMessage = `Downloading video: ${percentage}%`;
-                    break;
-                case 'downloading_audio':
-                    displayMessage = `Downloading audio: ${percentage}%`;
-                    break;
-                case 'downloading':
-                    displayMessage = `Downloading: ${percentage}%`;
-                    break;
-                case 'decrypting':
-                    displayMessage = `Decrypting: ${percentage}%`;
-                    break;
-                case 'merging':
-                    displayMessage = `Merging audio/video: ${percentage}%`;
-                    break;
-                case 'completed':
-                    displayMessage = 'Download completed!';
-                    break;
-                default:
-                    displayMessage = `${progress.stage}: ${percentage}%`;
+    if (!topbarState) {
+        logger.debug('Topbar', 'No topbar state derived', {
+            downloadId,
+            status,
+            stage: progress?.stage,
+        });
+        return;
+    }
+
+    logger.debug('Topbar', 'Applying derived topbar state', topbarState);
+    updateTopbarStatus(topbarState);
+
+    if (topbarState.resetDelay) {
+        setTimeout(() => {
+            if (activeDownloads.size === 0) {
+                updateTopbarStatus({ message: 'Connected', type: 'info' });
             }
-        }
-
-        // Add speed and ETA if available
-        if (progress.speed && progress.eta && progress.stage === 'downloading') {
-            displayMessage = `Downloading: ${percentage}% (${progress.speed} - ETA: ${progress.eta})`;
-        }
-
-        updateTopbarStatus(displayMessage, 'progress', percentage);
+        }, topbarState.resetDelay);
     }
 }
 
-// Update topbar with download status
-function updateTopbarWithStatus(downloadId, status, data) {
-    let message = '';
-    let type = 'info';
+function getDownloadLabel(data = {}) {
+    return data.filename || data.title || data.name || '';
+}
 
-    switch (status) {
-        case 'fetching_info':
-            message = 'Fetching episode information...';
-            break;
-        case 'downloading':
-            message = `Downloading: ${data.filename || 'episode'}`;
-            break;
-        case 'decrypting':
-            message = 'Decrypting video...';
-            break;
-        case 'merging':
-            message = 'Merging audio and video...';
-            break;
-        case 'completed':
-            message = `Download completed: ${data.filename || 'episode'}`;
-            type = 'success';
-            setTimeout(() => updateTopbarStatus('Connected', 'info'), 5000);
-            break;
-        case 'error':
-            message = `Error: ${data.error || 'Download failed'}`;
-            type = 'error';
-            break;
+function getStageLabel(stage) {
+    const stageLabels = {
+        downloading_video: 'Downloading video',
+        downloading_audio: 'Downloading audio',
+        downloading: 'Downloading',
+        decrypting: 'Decrypting',
+        merging: 'Merging audio & video',
+        fetching_info: 'Fetching episode information',
+        processing: 'Preparing download',
+        needs_profile: 'Profile required',
+    };
+
+    if (!stage) {
+        return 'Downloading';
     }
 
-    if (message) {
-        updateTopbarStatus(message, type);
+    return stageLabels[stage] || (stage.charAt(0).toUpperCase() + stage.slice(1).replace(/_/g, ' '));
+}
+
+function buildStageMessage(stage, percentage) {
+    const base = getStageLabel(stage);
+    if (typeof percentage === 'number') {
+        return `${base}: ${percentage}%`;
     }
+    return stage === 'completed' || stage === 'error' ? base : `${base}...`;
+}
+
+function buildProgressHeadline({ stage, percentage, progress, label, data }) {
+    if (progress?.message) {
+        return progress.message;
+    }
+
+    const base = getStageLabel(stage || 'downloading');
+
+    if (stage === 'error') {
+        return `Error`;
+    }
+
+    if (stage === 'completed') {
+        return label ? `Download completed: ${label}` : 'Download completed!';
+    }
+
+    if (stage === 'downloading' && label) {
+        if (typeof percentage === 'number') {
+            return `${base} ${label} (${percentage}%)`;
+        }
+        return `${base} ${label}`;
+    }
+
+    return buildStageMessage(stage || 'downloading', percentage);
+}
+
+function clampPercentage(value) {
+    if (!Number.isFinite(value)) {
+        return null;
+    }
+    return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function uniqueMetrics(metrics) {
+    const seen = new Set();
+    return metrics.filter((metric) => {
+        if (!metric || !metric.key) {
+            return false;
+        }
+        if (seen.has(metric.key)) {
+            return false;
+        }
+        seen.add(metric.key);
+        return true;
+    });
+}
+
+function buildTopbarMetrics({ stage, percentage, progress, label, status, data }) {
+    const metrics = [];
+    const cleanedLabel = (label || '').trim();
+
+    if (cleanedLabel) {
+        metrics.push({ key: 'label', label: 'Title', value: cleanedLabel, weight: 'xl' });
+    }
+
+    if (stage === 'error' || status === 'error') {
+        const reason = progress?.message || data?.error || progress?.error;
+        if (reason) {
+            metrics.push({ key: 'error-reason', label: 'Reason', value: reason, weight: 'xl' });
+        }
+        return uniqueMetrics(metrics);
+    }
+
+    if (stage === 'completed' || status === 'completed') {
+        return uniqueMetrics(metrics);
+    }
+
+    if (stage === 'downloading' || status === 'downloading') {
+        if (percentage !== null) {
+            metrics.push({ key: 'progress', label: 'Progress', value: `${percentage}%`, weight: 'xl', fill: `${percentage}%` });
+        }
+        if (progress?.speed) {
+            metrics.push({ key: 'speed', label: 'Speed', value: progress.speed, weight: 'lg' });
+        }
+        if (progress?.eta && progress.eta !== '00:00') {
+            metrics.push({ key: 'eta', label: 'ETA', value: progress.eta, weight: 'md' });
+        }
+        if (progress?.totalSize) {
+            metrics.push({ key: 'size', label: 'Total', value: progress.totalSize, weight: 'md' });
+        }
+        return uniqueMetrics(metrics);
+    }
+
+    const stageLabel = getStageLabel(stage || status);
+    if (stageLabel && stageLabel !== 'Downloading' && stageLabel !== 'Download completed' && stageLabel !== 'Error') {
+        metrics.push({ key: 'stage', label: 'Stage', value: stageLabel, weight: 'lg' });
+    }
+
+    return uniqueMetrics(metrics);
+}
+
+function deriveDownloadTopbarState({ status, progress, data = {} }) {
+    const label = getDownloadLabel(data);
+    const stage = progress?.stage || status || null;
+    const percentage = clampPercentage(progress?.percentage);
+    const isCompleted = stage === 'completed' || status === 'completed' || (percentage !== null && percentage >= 100);
+    const isError = stage === 'error' || status === 'error' || Boolean(data.error) || Boolean(progress?.error);
+    const metrics = buildTopbarMetrics({ stage, percentage, progress, label, status, data });
+
+    logger.debug('Topbar', 'deriveDownloadTopbarState', {
+        status,
+        stage,
+        percentage,
+        label,
+        isCompleted,
+        isError,
+        metricsCount: metrics.length,
+    });
+
+    if (isCompleted) {
+        const completedMessage = progress?.message || (label ? `Download completed: ${label}` : 'Download completed!');
+        return {
+            message: completedMessage,
+            type: 'success',
+            progress: null,
+            metrics,
+            resetDelay: 5000,
+        };
+    }
+
+    if (isError) {
+        const errorMessage = progress?.message || data.error || progress?.error || 'Download failed';
+        return {
+            message: `Error: ${errorMessage}`,
+            type: 'error',
+            progress: null,
+            metrics: metrics.length ? metrics : buildTopbarMetrics({ stage: 'error', percentage, progress, label, status: 'error', data: { ...data, error: errorMessage } }),
+        };
+    }
+
+    if (progress) {
+        const message = buildProgressHeadline({ stage, percentage, progress, label, data });
+        return {
+            message,
+            type: 'progress',
+            progress: percentage === null ? null : percentage,
+            metrics,
+        };
+    }
+
+    if (!status) {
+        logger.debug('Topbar', 'deriveDownloadTopbarState received no status or progress data');
+        return null;
+    }
+
+    const statusHandlers = {
+        processing: () => ({
+            message: 'Preparing download...',
+            type: 'info',
+            progress: null,
+            metrics: buildTopbarMetrics({ stage: 'processing', percentage, progress, label, status, data }),
+        }),
+        fetching_info: () => ({
+            message: 'Fetching episode information...',
+            type: 'info',
+            progress: null,
+            metrics: buildTopbarMetrics({ stage: 'fetching_info', percentage, progress, label, status, data }),
+        }),
+        needs_profile: () => ({
+            message: 'Profile selection required',
+            type: 'warning',
+            progress: null,
+            metrics: buildTopbarMetrics({ stage: 'needs_profile', percentage, progress, label, status, data }),
+        }),
+        downloading: () => ({
+            message: buildProgressHeadline({ stage: 'downloading', percentage, progress, label, data }),
+            type: 'progress',
+            progress: percentage,
+            metrics: buildTopbarMetrics({ stage: 'downloading', percentage, progress, label, status, data }),
+        }),
+        decrypting: () => ({
+            message: 'Decrypting video...',
+            type: 'progress',
+            progress: null,
+            metrics: buildTopbarMetrics({ stage: 'decrypting', percentage, progress, label, status, data }),
+        }),
+        merging: () => ({
+            message: 'Merging audio and video...',
+            type: 'progress',
+            progress: null,
+            metrics: buildTopbarMetrics({ stage: 'merging', percentage, progress, label, status, data }),
+        }),
+        completed: () => ({
+            message: label ? `Download completed: ${label}` : 'Download completed!',
+            type: 'success',
+            progress: null,
+            metrics: buildTopbarMetrics({ stage: 'completed', percentage, progress, label, status, data }),
+            resetDelay: 5000,
+        }),
+        error: () => ({
+            message: `Error: ${data.error || 'Download failed'}`,
+            type: 'error',
+            progress: null,
+            metrics: buildTopbarMetrics({ stage: 'error', percentage, progress, label, status, data }),
+        }),
+    };
+
+    const handler = statusHandlers[status];
+    if (!handler) {
+        logger.debug('Topbar', 'Unhandled status value', { status });
+        return null;
+    }
+
+    return handler();
 }
 
 // Update download status
 function updateDownloadStatus(downloadId, status, data) {
-    const download = activeDownloads.get(downloadId);
-    if (download) {
-        activeDownloads.set(downloadId, { ...download, status, ...data });
+    const download = activeDownloads.get(downloadId) || { id: downloadId };
+    activeDownloads.set(downloadId, { ...download, status, ...data });
 
-        // Show overlay for active downloads
-        if (status === 'downloading' || status === 'decrypting' || status === 'merging' || status === 'fetching_info') {
-            showDownloadOverlay();
-        }
+    // Overlay removed - no longer showing overlay for active downloads
 
-        // Remove completed/errored downloads after 10 seconds
-        if (status === 'completed' || status === 'error') {
-            setTimeout(() => {
-                activeDownloads.delete(downloadId);
-                // Reset topbar to connected state and hide overlay if no more active downloads
-                if (activeDownloads.size === 0) {
-                    updateTopbarStatus('Connected', 'info');
-                    hideDownloadOverlay();
-                } else {
-                    // Check if any remaining downloads are active
-                    const hasActiveDownloads = Array.from(activeDownloads.values()).some(d =>
-                        d.status === 'downloading' || d.status === 'decrypting' ||
-                        d.status === 'merging' || d.status === 'fetching_info'
-                    );
-                    if (!hasActiveDownloads) {
-                        hideDownloadOverlay();
-                    }
-                }
-            }, 10000);
+    // Remove completed/errored downloads after 10 seconds
+    if (status === 'completed' || status === 'error') {
+        setTimeout(() => {
+            activeDownloads.delete(downloadId);
+            // Reset topbar to connected state when no more active downloads
+            if (activeDownloads.size === 0) {
+                updateTopbarStatus({ message: 'Connected', type: 'info' });
+            }
+        }, 10000);
+    }
+}
+
+// Keep track of loaded tabs
+const loadedTabs = new Set();
+
+// Load tab content dynamically
+async function loadTabContent(tabName) {
+    const tabElement = document.getElementById(`${tabName}-tab`);
+
+    // Only load if not already loaded
+    if (!loadedTabs.has(tabName)) {
+        try {
+            const response = await fetch(`tabs/${tabName}-tab.html`);
+            if (response.ok) {
+                const html = await response.text();
+                tabElement.innerHTML = html;
+                loadedTabs.add(tabName);
+
+                // Re-attach event listeners for the newly loaded content
+                await attachTabEventListeners(tabName);
+            } else {
+                logger.error('UI', `Failed to load tab content for ${tabName}`);
+                tabElement.innerHTML = '<p>Failed to load content</p>';
+            }
+        } catch (error) {
+            logger.error('UI', `Error loading tab ${tabName}:`, error);
+            tabElement.innerHTML = '<p>Error loading content</p>';
         }
     }
 }
 
+// Attach event listeners for specific tab content
+async function attachTabEventListeners(tabName) {
+    switch(tabName) {
+        case 'home':
+            // No specific event listeners needed for home tab
+            break;
+        case 'episode':
+            const episodeForm = document.getElementById('episode-form');
+            if (episodeForm) {
+                episodeForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const url = document.getElementById('episode-url').value;
+                    await startDownload('/download/episode', { url });
+                    document.getElementById('episode-url').value = '';
+                });
+            }
+            break;
+
+        case 'show':
+            const showForm = document.getElementById('show-form');
+            if (showForm) {
+                showForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const url = document.getElementById('show-url').value;
+                    const seasonCount = document.getElementById('season-count').value;
+                    const reverse = document.getElementById('show-reverse').checked;
+
+                    const data = { url, reverse };
+                    if (seasonCount) {
+                        data.seasonCount = parseInt(seasonCount);
+                    }
+
+                    await startDownload('/download/show', data);
+                    document.getElementById('show-form').reset();
+                });
+            }
+            break;
+
+        case 'season':
+            const seasonForm = document.getElementById('season-form');
+            if (seasonForm) {
+                seasonForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const url = document.getElementById('season-url').value;
+                    const reverse = document.getElementById('season-reverse').checked;
+                    await startDownload('/download/season', { url, reverse });
+                    document.getElementById('season-url').value = '';
+                    document.getElementById('season-reverse').checked = false;
+                });
+            }
+            break;
+
+        case 'batch':
+            const batchForm = document.getElementById('batch-form');
+            if (batchForm) {
+                batchForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const urls = document.getElementById('batch-urls').value
+                        .split('\n')
+                        .map(url => url.trim())
+                        .filter(url => url);
+
+                    if (urls.length === 0) {
+                        alert('Please enter at least one URL');
+                        return;
+                    }
+
+                    await startDownload('/download/batch', { urls });
+                    document.getElementById('batch-urls').value = '';
+                });
+            }
+            break;
+
+        case 'settings':
+            attachSettingsEventListeners();
+            // Use setTimeout to ensure DOM is ready
+            setTimeout(() => {
+                loadConfig();
+            }, 100);
+            break;
+
+        case 'downloads':
+            attachDownloadsEventListeners();
+            break;
+    }
+}
+
+// Router configuration
+const routes = {
+    '/': 'home',
+    '/episode': 'episode',
+    '/show': 'show',
+    '/season': 'season',
+    '/batch': 'batch',
+    '/downloads': 'downloads',
+    '/settings': 'settings'
+};
+
+// Get route from path
+function getRouteFromPath(path) {
+    return routes[path] || 'home';
+}
+
+// Get path from route
+function getPathFromRoute(route) {
+    for (const [path, r] of Object.entries(routes)) {
+        if (r === route) return path;
+    }
+    return '/';
+}
+
+// Navigate to a specific tab
+async function navigateToTab(tabName, pushState = true) {
+    // Load tab content if needed
+    await loadTabContent(tabName);
+
+    // Update active tab button
+    document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.tab === tabName) {
+            btn.classList.add('active');
+        }
+    });
+
+    // Update active tab content
+    document.querySelectorAll('.tab-pane').forEach(pane => {
+        pane.classList.remove('active');
+    });
+    const targetTab = document.getElementById(`${tabName}-tab`);
+    if (targetTab) {
+        targetTab.classList.add('active');
+    }
+
+    // If navigating to downloads tab, load downloaded episodes
+    if (tabName === 'downloads') {
+        loadDownloadedList();
+    }
+
+    // Update URL if needed
+    if (pushState) {
+        const path = getPathFromRoute(tabName);
+        window.history.pushState({ tab: tabName }, '', path);
+    }
+}
+
+// Handle browser back/forward buttons
+window.addEventListener('popstate', async (event) => {
+    const tabName = event.state?.tab || getRouteFromPath(window.location.pathname);
+    await navigateToTab(tabName, false);
+});
+
 // Tab switching
 document.querySelectorAll('.tab-button').forEach(button => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
         const tabName = button.dataset.tab;
-
-        // Update active tab button
-        document.querySelectorAll('.tab-button').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        button.classList.add('active');
-
-        // Update active tab content
-        document.querySelectorAll('.tab-pane').forEach(pane => {
-            pane.classList.remove('active');
-        });
-        document.getElementById(`${tabName}-tab`).classList.add('active');
-
-        // If navigating to downloads tab, load downloaded episodes
-        if (tabName === 'downloads') {
-            loadDownloadedList();
-        }
+        await navigateToTab(tabName);
     });
 });
 
-// Form submissions
-document.getElementById('episode-form').addEventListener('submit', async (e) => {
+// Brand/logo click - navigate to home
+document.querySelector('.brand').addEventListener('click', async (e) => {
     e.preventDefault();
-    const url = document.getElementById('episode-url').value;
-    await startDownload('/download/episode', { url });
-    document.getElementById('episode-url').value = '';
+    await navigateToTab('home');
 });
 
-document.getElementById('show-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const url = document.getElementById('show-url').value;
-    const seasons = document.getElementById('season-count').value || -1;
-    const reverse = document.getElementById('show-reverse').checked;
-    await startDownload('/download/show', { url, seasons: parseInt(seasons), reverse });
-    document.getElementById('show-url').value = '';
-    document.getElementById('season-count').value = '';
-    document.getElementById('show-reverse').checked = false;
-});
+// Function to attach settings event listeners
+function attachSettingsEventListeners() {
+    const settingsForm = document.getElementById('settings-form');
+    if (settingsForm) {
+        settingsForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
 
-document.getElementById('season-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const url = document.getElementById('season-url').value;
-    const reverse = document.getElementById('season-reverse').checked;
-    await startDownload('/download/season', { url, reverse });
-    document.getElementById('season-url').value = '';
-    document.getElementById('season-reverse').checked = false;
-});
+            const config = {
+                NPO_EMAIL: document.getElementById('npo-email').value,
+                NPO_PASSW: document.getElementById('npo-password').value,
+                GETWVKEYS_API_KEY: document.getElementById('api-key').value,
+                HEADLESS: document.getElementById('headless-mode').checked
+            };
 
-document.getElementById('batch-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const urlsText = document.getElementById('batch-urls').value;
-    const urls = urlsText.split('\n').map(u => u.trim()).filter(u => u);
-    if (urls.length > 0) {
-        await startDownload('/download/batch', { urls });
-        document.getElementById('batch-urls').value = '';
+            try {
+                const response = await fetch(`${API_BASE}/config`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Clear password fields for security if they were updated
+                    if (config.NPO_PASSW !== '********') {
+                        document.getElementById('npo-password').value = '';
+                    }
+                    if (config.GETWVKEYS_API_KEY !== '********') {
+                        document.getElementById('api-key').value = '';
+                    }
+                    // Reload config to show masked values and update status
+                    await loadConfig();
+                }
+            } catch (error) {
+                logger.error('Settings', 'Failed to save:', error);
+            }
+        });
     }
-});
+
+    // Test connection button
+    const testButton = document.getElementById('test-connection');
+    if (testButton) {
+        testButton.addEventListener('click', async () => {
+            try {
+                const response = await fetch(`${API_BASE}/test-connection`, {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    logger.info('Settings', 'Connection test successful');
+                }
+            } catch (error) {
+                logger.error('Settings', 'Connection test failed:', error);
+            }
+        });
+    }
+
+    // Profile selection button
+    const selectProfileBtn = document.getElementById('select-profile');
+    if (selectProfileBtn) {
+        selectProfileBtn.addEventListener('click', async () => {
+            const profileList = document.getElementById('profile-list');
+            const profileButtons = document.getElementById('profile-buttons');
+
+            // Toggle profile list visibility
+            if (profileList.style.display === 'none') {
+                // Fetch available profiles
+                try {
+                    const response = await fetch(`${API_BASE}/profiles`);
+                    const result = await response.json();
+
+                    if (result.success && result.profiles && result.profiles.length > 0) {
+                        // Clear existing buttons
+                        profileButtons.innerHTML = '';
+
+                        // Create profile buttons
+                        result.profiles.forEach(profile => {
+                            const button = document.createElement('button');
+                            button.type = 'button';
+                            button.className = 'btn-secondary';
+                            button.textContent = profile.name;
+                            button.style.padding = '5px 15px';
+                            button.addEventListener('click', async () => {
+                                await selectProfile(profile.name);
+                            });
+                            profileButtons.appendChild(button);
+                        });
+
+                        profileList.style.display = 'block';
+                    }
+                } catch (error) {
+                    logger.error('Profile', 'Failed to fetch profiles:', error);
+                }
+            } else {
+                profileList.style.display = 'none';
+            }
+        });
+    }
+}
+
+// Function to attach downloads event listeners
+function attachDownloadsEventListeners() {
+    const playButton = document.getElementById('play-episode');
+    if (playButton) {
+        playButton.addEventListener('click', () => {
+            const episode = playButton.dataset.episode;
+            if (episode) {
+                const episodeData = JSON.parse(episode);
+                playVideo(encodeURIComponent(episodeData.filename), episodeData.title);
+                document.getElementById('player-section').style.display = 'block';
+            }
+        });
+    }
+}
 
 // Start download
 async function startDownload(endpoint, data) {
     try {
-        showDownloadOverlay(); // Show overlay when starting download
-
         const response = await fetch(`${API_BASE}${endpoint}`, {
             method: 'POST',
             headers: {
@@ -285,19 +837,15 @@ async function startDownload(endpoint, data) {
         const result = await response.json();
 
         if (result.error) {
-            showError(result.error);
-            hideDownloadOverlay(); // Hide on error
+            logger.error('Download', result.error);
         } else {
-            showSuccess(result.message);
+            logger.info('Download', result.message);
             if (result.downloadId) {
                 trackDownload(result.downloadId);
-            } else {
-                hideDownloadOverlay(); // Hide if no download started
             }
         }
     } catch (error) {
-        showError('Failed to start download: ' + error.message);
-        hideDownloadOverlay(); // Hide on error
+        logger.error('Download', 'Failed to start: ' + error.message);
     }
 }
 
@@ -326,44 +874,39 @@ function trackDownload(downloadId) {
             }
         })
         .catch(error => {
-            console.error('Failed to fetch initial status:', error);
+            logger.error('Download', 'Failed to fetch initial status:', error);
         });
 }
 
 
 // Handle profile selection needed
 async function handleProfileNeeded(downloadId, status) {
-    console.log('Profile selection needed for download:', downloadId);
-    console.log('Status object:', status);
+    logger.debug('Profile', `Selection needed for download: ${downloadId}`);
 
     // Remove from active downloads first
     activeDownloads.delete(downloadId);
 
-    // Hide overlay since download needs user interaction
-    hideDownloadOverlay();
-
     // Show modal with profile selection
     if (status.profiles && status.profiles.length > 0) {
-        console.log('Showing profile modal with profiles:', status.profiles);
-        console.log('Original URL:', status.url);
+        logger.debug('Profile', `Showing modal with ${status.profiles.length} profiles`);
         showProfileModal(status.profiles, status.url);
     } else {
-        console.error('No profiles available in status:', status);
+        logger.error('Profile', 'No profiles available in status');
     }
 }
 
 // Show profile selection modal
 function showProfileModal(profiles, originalUrl) {
-    console.log('showProfileModal called with:', { profiles, originalUrl });
+    logger.debug('Profile', `Modal opened with ${profiles.length} profiles`);
     const modal = document.getElementById('profile-modal');
     const modalButtons = document.getElementById('modal-profile-buttons');
 
     if (!modal) {
-        console.error('Profile modal element not found!');
+        logger.error('Profile', 'Modal element not found!');
         return;
     }
     if (!modalButtons) {
-        console.error('Profile modal buttons container not found!');
+        logger.error('Profile', 'Modal buttons container not found!');
         return;
     }
 
@@ -431,7 +974,7 @@ async function selectProfileAndRetry(profileName, originalUrl) {
         const result = await response.json();
 
         if (result.success) {
-            showSuccess(`Profile set to: ${profileName}. Retrying download...`);
+            logger.info('Profile', `Set to: ${profileName}. Retrying download...`);
 
             // Update the displayed profile in settings
             document.getElementById('current-profile').textContent = profileName;
@@ -448,10 +991,10 @@ async function selectProfileAndRetry(profileName, originalUrl) {
                 }
             }
         } else {
-            showError(result.error || 'Failed to set profile');
+            logger.error('Profile', result.error || 'Failed to set profile');
         }
     } catch (error) {
-        showError('Failed to set profile: ' + error.message);
+        logger.error('Profile', 'Failed to set: ' + error.message);
     }
 }
 
@@ -529,29 +1072,6 @@ function createDownloadCard(download) {
     `;
 }
 
-// Show success message
-function showSuccess(message) {
-    const alert = document.createElement('div');
-    alert.className = 'alert alert-success';
-    alert.textContent = message;
-    document.body.appendChild(alert);
-
-    setTimeout(() => {
-        alert.remove();
-    }, 3000);
-}
-
-// Show error message
-function showError(message) {
-    const alert = document.createElement('div');
-    alert.className = 'alert alert-error';
-    alert.textContent = message;
-    document.body.appendChild(alert);
-
-    setTimeout(() => {
-        alert.remove();
-    }, 5000);
-}
 
 // Check for existing downloads on page load
 async function checkExistingDownloads() {
@@ -565,99 +1085,9 @@ async function checkExistingDownloads() {
             }
         }
     } catch (error) {
-        console.error('Failed to fetch existing downloads:', error);
+        logger.error('Downloads', 'Failed to fetch existing downloads:', error);
     }
 }
-
-// Settings management
-document.getElementById('settings-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const config = {
-        NPO_EMAIL: document.getElementById('npo-email').value,
-        NPO_PASSW: document.getElementById('npo-password').value,
-        GETWVKEYS_API_KEY: document.getElementById('api-key').value,
-        HEADLESS: document.getElementById('headless-mode').checked
-    };
-
-    try {
-        const response = await fetch(`${API_BASE}/config`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(config)
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            // Clear password fields for security if they were updated
-            if (config.NPO_PASSW !== '********') {
-                document.getElementById('npo-password').value = '';
-            }
-            if (config.GETWVKEYS_API_KEY !== '********') {
-                document.getElementById('api-key').value = '';
-            }
-            // Reload config to show masked values and update status
-            await loadConfig();
-        }
-    } catch (error) {
-    }
-});
-
-// Test connection button
-document.getElementById('test-connection').addEventListener('click', async () => {
-    try {
-        const response = await fetch(`${API_BASE}/test-connection`, {
-            method: 'POST'
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-        }
-    } catch (error) {
-    }
-});
-
-// Profile selection button
-document.getElementById('select-profile').addEventListener('click', async () => {
-    const profileList = document.getElementById('profile-list');
-    const profileButtons = document.getElementById('profile-buttons');
-
-    // Toggle profile list visibility
-    if (profileList.style.display === 'none') {
-        // Fetch available profiles
-        try {
-            const response = await fetch(`${API_BASE}/profiles`);
-            const result = await response.json();
-
-            if (result.success && result.profiles && result.profiles.length > 0) {
-                // Clear existing buttons
-                profileButtons.innerHTML = '';
-
-                // Create profile buttons
-                result.profiles.forEach(profile => {
-                    const button = document.createElement('button');
-                    button.type = 'button';
-                    button.className = 'btn-secondary';
-                    button.textContent = profile.name;
-                    button.style.padding = '5px 15px';
-                    button.addEventListener('click', async () => {
-                        await selectProfile(profile.name);
-                    });
-                    profileButtons.appendChild(button);
-                });
-
-                profileList.style.display = 'block';
-            }
-        } catch (error) {
-        }
-    } else {
-        profileList.style.display = 'none';
-    }
-});
 
 // Select a profile
 async function selectProfile(profileName) {
@@ -686,43 +1116,55 @@ async function loadConfig() {
         const response = await fetch(`${API_BASE}/config`);
         const config = await response.json();
 
-        // Populate form fields
-        document.getElementById('npo-email').value = config.NPO_EMAIL || '';
+        // Only populate form fields if elements exist (settings tab is loaded)
+        const emailField = document.getElementById('npo-email');
+        if (emailField) {
+            emailField.value = config.NPO_EMAIL || '';
+        }
 
         // Handle password field
-        if (config.hasPassword) {
-            document.getElementById('npo-password').value = config.NPO_PASSW; // This will be masked stars
-            document.getElementById('npo-password').placeholder = 'Password saved (enter new to change)';
+        const passwordField = document.getElementById('npo-password');
+        if (passwordField) {
+            if (config.hasPassword) {
+                passwordField.placeholder = 'Password saved (enter new to change)';
+            } else {
+                passwordField.placeholder = 'Your NPO password';
+            }
         }
 
         // Handle API key field
-        if (config.hasApiKey) {
-            document.getElementById('api-key').value = config.GETWVKEYS_API_KEY; // This will be masked stars
-            document.getElementById('api-key').placeholder = 'API key saved (enter new to change)';
+        const apiKeyField = document.getElementById('api-key');
+        if (apiKeyField) {
+            if (config.hasApiKey) {
+                apiKeyField.placeholder = 'API key saved (enter new to change)';
+            } else {
+                apiKeyField.placeholder = 'Your API key from getwvkeys.cc';
+            }
         }
 
-        document.getElementById('headless-mode').checked = config.HEADLESS;
+        const headlessCheckbox = document.getElementById('headless-mode');
+        if (headlessCheckbox) {
+            headlessCheckbox.checked = config.HEADLESS;
+        }
 
         // Update profile display
-        if (config.NPO_PROFILE) {
-            document.getElementById('current-profile').textContent = config.NPO_PROFILE;
-        } else {
-            document.getElementById('current-profile').textContent = 'Not selected';
+        const profileDisplay = document.getElementById('current-profile');
+        if (profileDisplay) {
+            if (config.NPO_PROFILE) {
+                profileDisplay.textContent = config.NPO_PROFILE;
+            } else {
+                profileDisplay.textContent = 'Not selected';
+            }
         }
 
     } catch (error) {
-        console.error('Failed to load configuration:', error);
+        logger.error('Config', 'Failed to load configuration:', error);
 
     }
 }
 
 
 // Show settings status message
-
-// Initialize
-initWebSocket();
-checkExistingDownloads();
-loadConfig();
 
 // Store current navigation state
 let navigationState = {
@@ -743,7 +1185,12 @@ async function loadShowsHierarchy() {
         if (!navigationState.showsData) {
             const res = await fetch(`${API_BASE}/shows`);
             const data = await res.json();
-            navigationState.showsData = data.shows || [];
+            // Handle both response formats
+            if (data.success && data.data) {
+                navigationState.showsData = data.data.shows || [];
+            } else {
+                navigationState.showsData = data.shows || [];
+            }
         }
 
         const shows = navigationState.showsData;
@@ -902,7 +1349,7 @@ async function loadShowsHierarchy() {
         });
 
     } catch (e) {
-        console.error('Failed to load shows:', e);
+        logger.error('Downloads', 'Failed to load shows:', e);
         container.innerHTML = '<p class="no-downloads">Failed to load downloads</p>';
     }
 }
@@ -994,20 +1441,20 @@ function playVideo(encodedFilename, displayName) {
     }
 }
 
-// Show download overlay
-function showDownloadOverlay() {
-    const overlay = document.getElementById('download-overlay');
-    if (overlay) {
-        overlay.style.display = 'block';
-        document.body.classList.add('downloading');
-    }
-}
+// Initialize the first tab on page load
+document.addEventListener('DOMContentLoaded', async () => {
+    // Determine initial tab from URL
+    const initialTab = getRouteFromPath(window.location.pathname);
 
-// Hide download overlay
-function hideDownloadOverlay() {
-    const overlay = document.getElementById('download-overlay');
-    if (overlay) {
-        overlay.style.display = 'none';
-        document.body.classList.remove('downloading');
-    }
-}
+    // Navigate to the initial tab
+    await navigateToTab(initialTab, false);
+
+    // Set initial history state
+    window.history.replaceState({ tab: initialTab }, '', window.location.pathname);
+
+    // Initialize WebSocket connection
+    initWebSocket();
+
+    // Check for existing downloads
+    checkExistingDownloads();
+});

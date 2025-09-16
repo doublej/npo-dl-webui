@@ -8,6 +8,7 @@ import { npoLogin } from './login.js';
 import getWvKeys from './keys.js';
 import { getConfig } from '../../config/env.js';
 import { downloadFromID } from '../../services/download/downloader.js';
+import logger from '../../lib/logger.js';
 
 // Small predicate helpers for clarity
 function needsProfileSelection(loginResult) {
@@ -32,16 +33,15 @@ function isPlusOnlyContent(pageContent) {
 
 // Atomic helpers (no logic changes)
 async function navigateAndHandleConsent(page, url) {
-  console.log(`Navigating to episode: ${url}`);
+  logger.debug('Episode', `Navigating to: ${url}`);
   await page.goto(url);
-  console.log(`Current URL after navigation: ${page.url()}`);
   await sleep(2000);
   try {
     const acceptButton = await page.$(
       "button[data-testid*=\"accept\"], button[data-testid*=\"continue\"], button:has-text(\"Accepteren\"), button:has-text(\"Doorgaan\")"
     );
     if (acceptButton) {
-      console.log("Found accept/continue button, clicking...");
+      logger.debug('Episode', 'Accepting consent');
       await acceptButton.click();
       await sleep(1000);
     }
@@ -113,22 +113,21 @@ const WidevineProxyUrl = "https://npo-drm-gateway.samgcloud.nepworldwide.nl/auth
  * @returns {Promise<any>} Information object or a profile selection payload
  */
 export async function getEpisode(url, profileName = null) {
-  console.log("=== GET EPISODE STARTED ===");
-  console.log("URL:", url);
-  console.log("Profile name passed:", profileName || 'NONE');
+  logger.group('GET EPISODE');
+  logger.info('Episode', `URL: ${url}`);
+  if (profileName) {
+    logger.debug('Episode', `Profile: ${profileName}`);
+  }
 
   // Create a single page to be used throughout the flow
   const page = await createPage();
-  console.log("Created browser page");
 
   try {
-    console.log("Calling npoLogin with profile:", profileName || 'NONE');
     const loginResult = await npoLogin({ profile: profileName, page });
-    console.log("Login result received:", JSON.stringify(loginResult, null, 2));
 
     // If profile selection is needed, return that information
     if (needsProfileSelection(loginResult)) {
-      console.log("⚠️ Profile selection needed - returning to UI");
+      logger.warn('Episode', 'Profile selection needed');
       await page.close();
       await closeBrowser();
       return {
@@ -141,20 +140,20 @@ export async function getEpisode(url, profileName = null) {
 
     // If login failed for other reasons
     if (isLoginFailure(loginResult)) {
-      console.error("✗ Login failed:", loginResult.error);
+      logger.error('Episode', `Login failed: ${loginResult.error}`);
       await page.close();
       await closeBrowser();
+      logger.groupEnd();
       throw new Error(loginResult.error || 'Login failed');
     }
 
-    console.log("✓ Login successful, fetching episode information...");
+    logger.info('Episode', 'Fetching episode information...');
     const result = await getInformation(url, page);
 
     await page.close();
-    console.log("Closing browser...");
     await closeBrowser();
 
-    console.log("=== GET EPISODE COMPLETED ===");
+    logger.groupEnd('Episode fetched successfully');
     return result;
   } catch (error) {
     // Make sure to close page and browser on error

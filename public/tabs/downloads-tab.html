@@ -1,0 +1,54 @@
+<h2>Downloads</h2>
+<div class="tab-content">
+    <div class="downloads-layout">
+        <!-- Navigation breadcrumb -->
+        <div id="downloads-breadcrumb" class="breadcrumb">
+            <span class="breadcrumb-item active" data-level="shows">Shows</span>
+        </div>
+
+        <div class="downloads-content">
+            <!-- Left panel: Shows/Seasons/Episodes list -->
+            <div class="downloads-list-panel">
+                <h3 id="downloads-list-title">Downloaded Shows</h3>
+                <div id="downloaded-container">
+                    <p class="no-downloads">Loading...</p>
+                </div>
+            </div>
+
+            <!-- Right panel: Episode details and player -->
+            <div class="downloads-detail-panel">
+                <div id="episode-details" style="display: none;">
+                    <h3 id="episode-title"></h3>
+                    <div class="episode-metadata">
+                        <div class="metadata-item">
+                            <strong>Episode:</strong> <span id="episode-number"></span>
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Aired:</strong> <span id="episode-airing"></span>
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Duration:</strong> <span id="episode-duration"></span>
+                        </div>
+                        <div class="metadata-item">
+                            <strong>File Size:</strong> <span id="episode-size"></span>
+                        </div>
+                        <div class="metadata-description">
+                            <strong>Description:</strong>
+                            <p id="episode-description"></p>
+                        </div>
+                    </div>
+                    <button id="play-episode" class="btn-primary" style="margin-top: 1rem;">Play Episode</button>
+                </div>
+
+                <div id="player-section" style="margin-top: 1rem; display: none;">
+                    <video id="video-player" controls style="width:100%; max-width: 100%; background:#000; border-radius: 8px;" crossorigin="anonymous"></video>
+                    <div id="now-playing" class="help-text" style="margin-top: 8px;"></div>
+                </div>
+
+                <div id="no-selection" class="no-selection-message">
+                    <p>Select an episode to view details</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,5 +1,6 @@
 import { launch } from "puppeteer-core";
 import { getConfig } from '../config/env.js';
+import logger from './logger.js';
 
 let browserInstance = null;
 
@@ -28,10 +29,10 @@ export async function launchBrowser() {
   try {
     browserInstance = await launch(buildLaunchOptions(config));
 
-    console.log('Browser launched successfully');
+    logger.info('Browser', 'Launched successfully');
     return browserInstance;
   } catch (error) {
-    console.error('Failed to launch browser:', error.message);
+    logger.error('Browser', `Failed to launch: ${error.message}`);
     throw error;
   }
 }
@@ -62,9 +63,9 @@ export async function closeBrowser() {
   if (browserInstance) {
     try {
       await browserInstance.close();
-      console.log('Browser closed successfully');
+      logger.info('Browser', 'Closed successfully');
     } catch (error) {
-      console.error('Error closing browser:', error.message);
+      logger.error('Browser', `Error closing: ${error.message}`);
     } finally {
       browserInstance = null;
     }
@@ -80,11 +81,11 @@ export async function createPage() {
   const page = await browser.newPage();
 
   // Clear all cookies to ensure clean state
-  console.log('Clearing all browser cookies...');
+  logger.debug('Browser', 'Clearing cookies and cache...');
   const client = await page.target().createCDPSession();
   await client.send('Network.clearBrowserCookies');
   await client.send('Network.clearBrowserCache');
-  console.log('✓ Browser cookies and cache cleared');
+  logger.debug('Browser', 'Cookies and cache cleared');
 
   // Also clear any localStorage and sessionStorage
   await page.evaluateOnNewDocument(() => {
@@ -102,7 +103,7 @@ export async function createPage() {
  * Graceful shutdown handler to close the browser.
  */
 export async function gracefulShutdown() {
-  console.log('Shutting down browser...');
+  logger.info('Browser', 'Shutting down...');
   await closeBrowser();
 }
 

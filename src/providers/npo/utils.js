@@ -3,6 +3,9 @@
  * @typedef {import('puppeteer').Page} Page
  */
 
+import { slugify } from '../../lib/utils/fs.js';
+import logger from '../../lib/logger.js';
+
 /**
  * Wait for HTTP response with specific suffix
  * @param {Page} page
@@ -22,11 +25,11 @@ export async function waitResponseSuffix(page, suffix) {
       return false;
     }
 
-    console.log(`request: ${url} method: ${method}`);
+    logger.debug('Request', `${method} ${url}`);
     try {
       await response.buffer();
     } catch (error) {
-      console.error("preflight error");
+      logger.error('Request', 'Preflight error');
       return false;
     }
 
@@ -67,12 +70,12 @@ export async function generateFileName(page) {
   // Build filename with available data
   let filename = '';
   if (info?.episodeNumber != null && !Number.isNaN(info.episodeNumber)) {
-    filename += `E${String(info.episodeNumber).padStart(2, '0')} - `; 
+    filename += `e${String(info.episodeNumber).padStart(2, '0')}-`;
   }
   filename += (info?.title || 'episode');
 
-  // Sanitize filename
-  filename = filename.replace(/[\/\\?%*:|"<>]/g, '#');
+  // Slugify the filename for safety
+  filename = slugify(filename);
   return filename;
 }
 

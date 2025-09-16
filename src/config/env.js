@@ -96,7 +96,7 @@ function getConfig() {
     VIDEO_PATH: process.env.VIDEO_PATH || './videos',
 
     // Server settings
-    PORT: parseInt(process.env.PORT || '3000'),
+    PORT: parseInt(process.env.PORT || '3001'),
   };
 }
 

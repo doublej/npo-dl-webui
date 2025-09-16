@@ -2,14 +2,21 @@ import { sendOk, sendFail } from '../http/response.js';
 import { loadEnvFile, saveEnvFile } from '../utils/env-file.js';
 import { npoLogin } from '../../providers/npo/login.js';
 
+function parseBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => body += chunk.toString());
+    req.on('end', () => { try { resolve(JSON.parse(body || '{}')); } catch (e) { reject(e); } });
+    req.on('error', reject);
+  });
+}
+
 export async function handleGetConfig(req, res) {
   try {
     const envVars = loadEnvFile();
     const config = {
       NPO_EMAIL: envVars.NPO_EMAIL || '',
-      NPO_PASSW: envVars.NPO_PASSW ? '********' : '',
       NPO_PROFILE: envVars.NPO_PROFILE || '',
-      GETWVKEYS_API_KEY: envVars.GETWVKEYS_API_KEY ? '********' : '',
       HEADLESS: envVars.HEADLESS === 'true',
       hasPassword: !!envVars.NPO_PASSW,
       hasApiKey: !!envVars.GETWVKEYS_API_KEY,
@@ -81,14 +88,5 @@ export async function handleSetProfile(req, res) {
   } catch (error) {
     sendFail(res, error.message, 500);
   }
-}
-
-function parseBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    req.on('data', chunk => body += chunk.toString());
-    req.on('end', () => { try { resolve(JSON.parse(body || '{}')); } catch (e) { reject(e); } });
-    req.on('error', reject);
-  });
 }
 

@@ -13,7 +13,7 @@
     <div class="container">
         <header class="topbar" role="banner">
             <div class="topbar__inner">
-                <a href="#" class="brand" aria-label="NPO home">
+                <a href="#" class="brand" aria-label="NPO home" data-tab="home">
                     <svg class="brand__logo" xmlns="http://www.w3.org/2000/svg" width="78" height="52" viewBox="0 0 78 52" fill="none" aria-hidden="true">
                         <path d="M50.6002 29.3366L29.4477 50.4081C27.3186 52.5305 24.8756 52.5305 22.7478 50.4081L1.59776 29.3378C-0.532587 27.2161 -0.532587 24.7841 1.59776 22.6624L22.7484 1.59273C24.8788 -0.53091 27.3192 -0.53091 29.4477 1.59273L50.5989 22.6624C52.7293 24.7822 52.7293 27.2155 50.6002 29.3366Z" fill="rgba(var(--logo-npo-gray))"></path>
                         <path d="M22.1726 15.0946L20.5652 13.5002C18.9736 11.9126 17.0605 11.8831 15.2744 13.665L14.0011 14.9335C12.2137 16.7124 12.2415 18.617 13.8338 20.2065L18.9831 25.334C19.5781 25.9236 20.2475 25.8368 20.7042 25.3825C21.1615 24.9269 21.2385 24.2719 20.6454 23.6785L19.4606 22.5013C19.7827 22.4333 20.1793 22.1885 20.6461 21.7248L22.0046 20.3688C23.7945 18.5894 23.7636 16.6847 22.1726 15.0946ZM7.08523 21.8217C8.87389 20.041 10.7851 20.0699 12.3786 21.6581L15.7892 25.0534C16.3828 25.6461 16.2951 26.3106 15.8372 26.7674C15.3805 27.2217 14.7186 27.301 14.1268 26.7076L10.7472 23.3419C10.1074 22.7013 9.50295 22.7221 8.78547 23.4394L7.43513 24.7841C6.71512 25.4995 6.69554 26.1004 7.33597 26.7372L10.715 30.1073C11.3106 30.6957 11.2316 31.3557 10.7762 31.8132C10.3183 32.2656 9.65138 32.3543 9.05516 31.7622L5.6471 28.3631C4.05297 26.7756 4.02455 24.8684 5.81195 23.0877L7.08523 21.8217ZM23.3177 5.6512C25.1038 3.86986 27.0194 3.89818 28.6098 5.48634L30.2153 7.08206C31.8075 8.67023 31.8359 10.5768 30.0473 12.3569L28.7759 13.6266C26.9898 15.4067 25.0748 15.379 23.4832 13.7877L21.8777 12.1926C20.2873 10.6051 20.2576 8.6998 22.0463 6.91972L23.3177 5.6512ZM26.9809 7.16889C26.338 6.53023 25.736 6.54911 25.0179 7.26705L23.667 8.61234C22.9495 9.32714 22.9286 9.92868 23.5716 10.5655L25.1146 12.1052C25.7563 12.7457 26.3569 12.7262 27.0775 12.0083L28.4279 10.6624C29.1441 9.94819 29.1649 9.34539 28.5245 8.70924L26.9809 7.16889ZM20.4812 16.7231C21.1217 17.3605 21.1014 17.9626 20.3827 18.6762L19.033 20.0221C18.3117 20.7388 17.7136 20.7583 17.0713 20.1184L15.5264 18.578C14.8854 17.9419 14.9037 17.3403 15.6218 16.6255L16.9709 15.2796C17.6928 14.5623 18.294 14.5447 18.9364 15.1827L20.4812 16.7231Z" fill="rgba(var(--orange-500))"></path>
@@ -23,239 +23,53 @@
                     <span class="brand__title">Downloader</span>
                 </a>
                 <nav class="primary-nav" aria-label="Hoofdnavigatie">
-                    <button class="tab-button active" data-tab="episode">Single Episode</button>
-                    <button class="tab-button" data-tab="show">Entire Show</button>
-                    <button class="tab-button" data-tab="season">Season</button>
-                    <button class="tab-button" data-tab="batch">Batch Download</button>
-                    <button class="tab-button" data-tab="downloads">Downloads</button>
-                    <button class="tab-button" data-tab="settings">Settings</button>
+                    <button class="tab-button active" data-tab="episode"><span class="tab-button__label">Single Episode</span></button>
+                    <button class="tab-button" data-tab="show"><span class="tab-button__label">Entire Show</span></button>
+                    <button class="tab-button" data-tab="season"><span class="tab-button__label">Season</span></button>
+                    <button class="tab-button" data-tab="batch"><span class="tab-button__label">Batch Download</span></button>
+                    <button class="tab-button" data-tab="downloads"><span class="tab-button__label">Downloads</span></button>
+                    <button class="tab-button" data-tab="settings"><span class="tab-button__label">Settings</span></button>
                 </nav>
-                <div id="topbar-status" class="topbar__status" aria-live="polite"></div>
             </div>
         </header>
 
+        <div class="topbar-status-layer">
+            <div id="topbar-status" class="topbar__status" aria-live="polite"></div>
+        </div>
+
         <main>
-            <!-- Tab Content -->
-            <div class="tab-content">
-                <!-- Single Episode Tab -->
-                <div id="episode-tab" class="tab-pane active">
-                    <form id="episode-form">
-                            <label for="episode-url">episode url:</label>
-                        <div class="form-group">
-                            <input
-                                type="url"
-                                id="episode-url"
-                                placeholder="https://npo.nl/start/serie/..."
-                                required
-                            >
-                        </div>
-                        <button type="submit" class="btn-primary">Download Episode</button>
-                    </form>
-                </div>
+            <!-- Tab Panes -->
+            <!-- Home Tab -->
+            <div id="home-tab" class="tab-pane active"></div>
 
-                <!-- Entire Show Tab -->
-                <div id="show-tab" class="tab-pane">
-                    <form id="show-form">
-                            <label for="show-url">show url:</label>
-                        <div class="form-group">
-                            <input
-                                type="url"
-                                id="show-url"
-                                placeholder="https://npo.nl/start/serie/..."
-                                required
-                            >
-                        </div>
-                            <label for="season-count">number of seasons (optional):</label>
-                        <div class="form-group">
-                            <input
-                                type="number"
-                                id="season-count"
-                                min="1"
-                                placeholder="All seasons"
-                            >
-                        </div>
-                        <div class="form-group">
-                            <label>
-                                start from first season
-                            </label>
-                                <input type="checkbox" id="show-reverse">
-                        </div>
-                        <button type="submit" class="btn-primary">Download Show</button>
-                    </form>
-                </div>
+            <!-- Single Episode Tab -->
+            <div id="episode-tab" class="tab-pane"></div>
 
-                <!-- Season Tab -->
-                <div id="season-tab" class="tab-pane">
-                    <form id="season-form">
-                            <label for="season-url">season url:</label>
-                        <div class="form-group">
-                            <input
-                                type="url"
-                                id="season-url"
-                                placeholder="https://npo.nl/start/serie/.../seizoen-..."
-                                required
-                            >
-                        </div>
-                        <div class="form-group">
-                            <label>
-                                start from first episode
-                            </label>
-                                <input type="checkbox" id="season-reverse">
-                        </div>
-                        <button type="submit" class="btn-primary">Download Season</button>
-                    </form>
-                </div>
+            <!-- Entire Show Tab -->
+            <div id="show-tab" class="tab-pane"></div>
 
-                <!-- Batch Download Tab -->
-                <div id="batch-tab" class="tab-pane">
-                    <form id="batch-form">
-                            <label for="batch-urls">episode urls (one per line):</label>
-                        <div class="form-group">
-                            <textarea
-                                id="batch-urls"
-                                rows="10"
-                                placeholder="https://npo.nl/start/serie/...
-https://npo.nl/start/serie/...
-https://npo.nl/start/serie/..."
-                                required
-                            ></textarea>
-                        </div>
-                        <button type="submit" class="btn-primary">Download All</button>
-                    </form>
-                </div>
+            <!-- Season Tab -->
+            <div id="season-tab" class="tab-pane"></div>
 
-                <!-- Settings Tab -->
-                <div id="settings-tab" class="tab-pane">
-                    <form id="settings-form">
-                        <h3>NPO Credentials</h3>
-                            <label for="npo-email">npo email:</label>
-                        <div class="form-group">
-                            <input
-                                type="email"
-                                id="npo-email"
-                                placeholder="your-email@example.com"
-                                required
-                            >
-                        </div>
-                            <label for="npo-password">npo password:</label>
-                        <div class="form-group">
-                            <input
-                                type="password"
-                                id="npo-password"
-                                placeholder="Your NPO password"
-                                required
-                            >
-                            <small class="help-text">Password is stored locally in .env file</small>
-                        </div>
+            <!-- Batch Download Tab -->
+            <div id="batch-tab" class="tab-pane"></div>
 
-                        <h3 style="margin-top: 30px;">NPO Profile</h3>
-                            <label for="npo-profile">selected profile:</label>
-                        <div class="form-group">
-                            <div id="profile-selection" style="display: flex; gap: 10px; align-items: center;">
-                                <span id="current-profile" style="font-weight: bold;">Not selected</span>
-                                <button type="button" id="select-profile" class="btn-secondary">Select Profile</button>
-                            </div>
-                            <div id="profile-list" style="display: none; margin-top: 10px;">
-                                <small class="help-text">Available profiles:</small>
-                                <div id="profile-buttons" style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;"></div>
-                            </div>
-                        </div>
+            <!-- Settings Tab -->
+            <div id="settings-tab" class="tab-pane"></div>
 
-                        <h3 style="margin-top: 30px;">API Configuration</h3>
-                            <label for="api-key">getwvkeys api key:</label>
-                        <div class="form-group">
-                            <input
-                                type="password"
-                                id="api-key"
-                                placeholder="Your API key from getwvkeys.cc"
-                                required
-                            >
-                            <small class="help-text">Get your key from <a href="https://getwvkeys.cc/me" target="_blank">getwvkeys.cc/me</a></small>
-                        </div>
-
-                        <h3 style="margin-top: 30px;">Browser Settings</h3>
-                        <div class="form-group">
-                            <label>
-                                run in headless mode (window)
-                            </label>
-                                <input type="checkbox" id="headless-mode">
-                            <small class="help-text">Enable for background downloads, disable for debugging</small>
-                        </div>
-
-                        <div class="button-group">
-                            <button type="submit" class="btn-primary">Save Settings</button>
-                            <button type="button" id="test-connection" class="btn-secondary">Test Connection</button>
-                        </div>
-
-
-                    </form>
-                </div>
-
-                <!-- Downloads Tab -->
-                <div id="downloads-tab" class="tab-pane">
-                    <div class="downloads-layout">
-                        <!-- Navigation breadcrumb -->
-                        <div id="downloads-breadcrumb" class="breadcrumb">
-                            <span class="breadcrumb-item active" data-level="shows">Shows</span>
-                        </div>
-
-                        <div class="downloads-content">
-                            <!-- Left panel: Shows/Seasons/Episodes list -->
-                            <div class="downloads-list-panel">
-                                <h3 id="downloads-list-title">Downloaded Shows</h3>
-                                <div id="downloaded-container">
-                                    <p class="no-downloads">Loading...</p>
-                                </div>
-                            </div>
-
-                            <!-- Right panel: Episode details and player -->
-                            <div class="downloads-detail-panel">
-                                <div id="episode-details" style="display: none;">
-                                    <h3 id="episode-title"></h3>
-                                    <div class="episode-metadata">
-                                        <div class="metadata-item">
-                                            <strong>Episode:</strong> <span id="episode-number"></span>
-                                        </div>
-                                        <div class="metadata-item">
-                                            <strong>Aired:</strong> <span id="episode-airing"></span>
-                                        </div>
-                                        <div class="metadata-item">
-                                            <strong>Duration:</strong> <span id="episode-duration"></span>
-                                        </div>
-                                        <div class="metadata-item">
-                                            <strong>File Size:</strong> <span id="episode-size"></span>
-                                        </div>
-                                        <div class="metadata-description">
-                                            <strong>Description:</strong>
-                                            <p id="episode-description"></p>
-                                        </div>
-                                    </div>
-                                    <button id="play-episode" class="btn-primary" style="margin-top: 1rem;">Play Episode</button>
-                                </div>
-
-                                <div id="player-section" style="margin-top: 1rem; display: none;">
-                                    <video id="video-player" controls style="width:100%; max-width: 100%; background:#000; border-radius: 8px;" crossorigin="anonymous"></video>
-                                    <div id="now-playing" class="help-text" style="margin-top: 8px;"></div>
-                                </div>
-
-                                <div id="no-selection" class="no-selection-message">
-                                    <p>Select an episode to view details</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <!-- Downloads Tab -->
+            <div id="downloads-tab" class="tab-pane"></div>
         </main>
 
         <footer>
-            footer
+            <div class="page-inner">
+                <p>NPO Downloader</p>
+                <p>Based on <a href="https://github.com/Ewoodss/npo-dl" target="_blank" rel="noopener">npo-dl</a> by Ewoodss</p>
+                <p>Original author: <a href="https://github.com/ealgase" target="_blank" rel="noopener">ealgase</a></p>
+                <p class="footer-note">This is an unofficial tool and is not affiliated with or endorsed by NPO</p>
+            </div>
         </footer>
     </div>
-
-    <!-- Download Overlay -->
-    <div id="download-overlay" class="download-overlay" style="display: none;"></div>
-
     <!-- Profile Selection Modal -->
     <div id="profile-modal" class="modal" style="display: none;">
         <div class="modal-content">
@@ -266,6 +80,7 @@ https://npo.nl/start/serie/..."
         </div>
     </div>
 
+    <script src="logger.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

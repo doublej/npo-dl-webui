@@ -1,0 +1,30 @@
+<h2>Entire Show</h2>
+<div class="tab-content">
+    <form id="show-form">
+        <label for="show-url">Show URL:</label>
+        <div class="form-group">
+            <input
+                type="url"
+                id="show-url"
+                placeholder="https://npo.nl/start/serie/..."
+                required
+            >
+        </div>
+        <label for="season-count">Number of seasons (optional):</label>
+        <div class="form-group">
+            <input
+                type="number"
+                id="season-count"
+                min="1"
+                placeholder="All seasons"
+            >
+        </div>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="show-reverse">
+                Start from first season
+            </label>
+        </div>
+        <button type="submit" class="btn-primary">Download Show</button>
+    </form>
+</div>

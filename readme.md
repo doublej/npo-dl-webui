@@ -57,3 +57,19 @@ npm install
 ```bash
 node cli.js download <url>
 ```
+
+## Logging Configuration
+
+The application uses a centralized logging system with configurable verbosity levels. Set the `LOG_LEVEL` environment variable to control log output:
+
+- `ERROR` - Only show errors
+- `WARN` - Show errors and warnings
+- `INFO` - Show errors, warnings, and informational messages (default)
+- `DEBUG` - Show all messages including debug output
+
+Example:
+```bash
+LOG_LEVEL=DEBUG node src/server/index.js
+```
+
+Download progress is automatically throttled to reduce console noise - progress updates are shown at 5% intervals.

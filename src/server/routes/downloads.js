@@ -4,6 +4,7 @@ import { getEpisode, getAllEpisodesFromShow, getAllEpisodesFromSeason } from '..
 import { downloadFromID } from '../../services/download/downloader.js';
 import { loadEnvFile } from '../utils/env-file.js';
 import { broadcastProgress, broadcastStatus } from '../websocket.js';
+import logger from '../../lib/logger.js';
 
 // In-memory download registry (kept here to scope to downloads module)
 export const activeDownloads = new Map();
@@ -45,12 +46,8 @@ export async function handleDownloadEpisode(req, res) {
         activeDownloads.set(downloadId, { status: DOWNLOAD_STATUS.DOWNLOADING, filename: information.filename });
         broadcastStatus(downloadId, DOWNLOAD_STATUS.DOWNLOADING, { filename: information.filename });
 
-        let progressCounter = 0;
         const progressCallback = (progress) => {
-          if (progressCounter % 25 === 0) {
-            console.log(`Progress for ${downloadId}:`, progress);
-          }
-          progressCounter++;
+          // UI updates via WebSocket - no console logging needed here
           broadcastProgress(downloadId, progress);
           const current = activeDownloads.get(downloadId);
           if (current) activeDownloads.set(downloadId, { ...current, progress });

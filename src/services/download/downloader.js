@@ -1,6 +1,7 @@
 import { deleteFile, fileExists, getVideoPaths, getFinalVideoPath, getTempPath } from "../../lib/utils/fs.js";
 import { runCommand } from "../../lib/utils/exec.js";
 import { sleep } from "../../lib/utils/time.js";
+import logger from "../../lib/logger.js";
 
 /**
  * @typedef {Object} ProgressUpdate
@@ -39,7 +40,7 @@ function buildEncryptedBasename(filename) {
 
 async function isFileAlreadyDownloaded(combinedFileName, progressCallback) {
     if (await fileExists(combinedFileName)) {
-        console.log("File already downloaded");
+        logger.info('Download', `File already exists: ${combinedFileName}`);
         reportProgress(progressCallback, 100, STAGE.COMPLETED, 'File already exists');
         return true;
     }
@@ -77,22 +78,20 @@ async function downloadEpisodeById(information, progressCallback = null) {
 
     let filename = information.filename.toString();
 
-    console.log(filename);
+    logger.info('Download', `Starting download: ${filename}`);
 
     const combinedFileName = getFinalVideoPath(filename);
     if (await isFileAlreadyDownloaded(combinedFileName, progressCallback)) {
         return combinedFileName;
     }
 
-    console.log(information);
+    logger.debug('Download', `Episode info: ${JSON.stringify({mpdUrl: information.mpdUrl, hasKey: !!information.wideVineKeyResponse})}`);
 
     // Report downloading phase
     reportProgress(progressCallback, 0, STAGE.DOWNLOADING_VIDEO, 'Starting video download...');
 
     // Download video and audio with progress
     filename = await downloadMpdResources(information.mpdUrl.toString(), filename, progressCallback);
-
-    console.log(filename);
 
     let key = extractWidevineKeyFromInfo(information);
 
@@ -140,7 +139,6 @@ async function downloadMpdResources(mpdUrl, filename, progressCallback = null) {
  * @returns {Promise<string>} Final combined file path.
  */
 async function decryptSegments(filename, key, progressCallback = null) {
-    //console.log(videoPath);
     let encryptedFilename = buildEncryptedBasename(filename);
 
     const mp4File = getTempPath(encryptedFilename + ".mp4");
@@ -158,6 +156,7 @@ async function decryptSegments(filename, key, progressCallback = null) {
     await sleep(100);
 
     if (await fileExists(resultFileName)) {
+        logger.debug('Cleanup', 'Removing temporary files');
         await deleteFile(mp4File);
         await deleteFile(m4aFile);
     }
@@ -200,6 +199,7 @@ async function muxAudioAndVideo(filename, video, audio, key, progressCallback = 
     const result = await runCommand("ffmpeg", args, combinedFileName, progressCallback);
 
     // Report completion
+    logger.info('Download', `Completed: ${combinedFileName}`);
     reportProgress(progressCallback, 100, STAGE.COMPLETED, 'Download completed successfully');
 
     return result;

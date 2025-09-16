@@ -1,0 +1,64 @@
+<h2>Settings</h2>
+<div class="tab-content">
+    <form id="settings-form">
+        <h3>NPO Credentials</h3>
+        <label for="npo-email">NPO Email:</label>
+        <div class="form-group">
+            <input
+                type="email"
+                id="npo-email"
+                placeholder="your-email@example.com"
+                required
+            >
+        </div>
+        <label for="npo-password">NPO Password:</label>
+        <div class="form-group">
+            <input
+                type="password"
+                id="npo-password"
+                placeholder="Your NPO password"
+                required
+            >
+            <small class="help-text">Password is stored locally in .env file</small>
+        </div>
+
+        <h3 style="margin-top: 30px;">NPO Profile</h3>
+        <label for="npo-profile">Selected profile:</label>
+        <div class="form-group">
+            <div id="profile-selection" style="display: flex; gap: 10px; align-items: center;">
+                <span id="current-profile" style="font-weight: bold;">Not selected</span>
+                <button type="button" id="select-profile" class="btn-secondary">Select Profile</button>
+            </div>
+            <div id="profile-list" style="display: none; margin-top: 10px;">
+                <small class="help-text">Available profiles:</small>
+                <div id="profile-buttons" style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;"></div>
+            </div>
+        </div>
+
+        <h3 style="margin-top: 30px;">API Configuration</h3>
+        <label for="api-key">GetWVKeys API Key:</label>
+        <div class="form-group">
+            <input
+                type="password"
+                id="api-key"
+                placeholder="Your API key from getwvkeys.cc"
+                required
+            >
+            <small class="help-text">Get your key from <a href="https://getwvkeys.cc/me" target="_blank">getwvkeys.cc/me</a></small>
+        </div>
+
+        <h3 style="margin-top: 30px;">Browser Settings</h3>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="headless-mode">
+                Run in headless mode (no window)
+            </label>
+            <small class="help-text">Enable for background downloads, disable for debugging</small>
+        </div>
+
+        <div class="button-group">
+            <button type="submit" class="btn-primary">Save Settings</button>
+            <button type="button" id="test-connection" class="btn-secondary">Test Connection</button>
+        </div>
+    </form>
+</div>
