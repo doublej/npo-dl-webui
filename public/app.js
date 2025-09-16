@@ -141,6 +141,7 @@ function updateTopbarMetrics(metricsEl, metrics = []) {
             metricsEl.appendChild(metricEl);
         } else {
             existing.delete(key);
+            metricEl.classList.remove('is-exiting');
         }
 
         metricEl.dataset.weight = weight;
@@ -170,9 +171,15 @@ function updateTopbarMetrics(metricsEl, metrics = []) {
     // Remove stale metrics with a fade-out animation
     existing.forEach((el) => {
         el.classList.remove('is-visible');
+        el.classList.add('is-exiting');
         el.addEventListener('transitionend', () => {
             el.remove();
         }, { once: true });
+        setTimeout(() => {
+            if (el.isConnected) {
+                el.remove();
+            }
+        }, 400);
     });
 
     metricsEl.classList.toggle('has-metrics', metrics.length > 0);
@@ -494,8 +501,6 @@ function deriveDownloadTopbarState({ status, progress, data = {} }) {
 function updateDownloadStatus(downloadId, status, data) {
     const download = activeDownloads.get(downloadId) || { id: downloadId };
     activeDownloads.set(downloadId, { ...download, status, ...data });
-
-    // Overlay removed - no longer showing overlay for active downloads
 
     // Remove completed/errored downloads after 10 seconds
     if (status === 'completed' || status === 'error') {

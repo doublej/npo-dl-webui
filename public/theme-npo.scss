@@ -58,7 +58,7 @@ header.topbar {
   top: 0;
   z-index: 20;
   position: relative;
-  overflow: hidden;
+
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   padding: 0;
 
@@ -114,16 +114,16 @@ header.topbar {
 }
 
 .topbar-status-layer {
-  position: relative;
+  top:0;left:0;
+  position: absolute;
+  margin: var(--npo-spacing-s) auto var(--npo-spacing-m);
   z-index: 22;
   max-width: 1280px;
   width: 100%;
-  margin: calc(-1 * var(--npo-spacing-l)) auto var(--npo-spacing-m);
   padding: 0 var(--npo-spacing-l);
   display: flex;
   justify-content: flex-end;
   pointer-events: none;
-
   > * {
     pointer-events: auto;
   }
@@ -165,22 +165,27 @@ header.topbar {
 /* Premium status pill in topbar with segmented metrics */
 .topbar__status {
   --status-accent: rgba(109, 175, 255, 0.38);
-  position: relative;
+  font-family: var(--npo-font-family);
+
+  position: absolute;
+  top: 58px;
+  right: 0;
+
   display: inline-flex;
   align-items: stretch;
-  font-family: var(--npo-font-family);
-  padding: 12px 18px;
-  border-radius: 16px;
+  padding: 12px 12px;
+  border-radius: 22px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(12, 22, 34, 0.78);
   backdrop-filter: blur(18px);
   box-shadow: 0 20px 48px rgba(8, 12, 22, 0.38);
   color: rgba(255, 255, 255, 0.92);
-  min-width: 220px;
+
   max-width: 420px;
   overflow: hidden;
   z-index: 1000;
   transition: max-width 0.45s ease, padding 0.3s ease, background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  flex-wrap: nowrap;
 
   &::after {
     content: '';
@@ -194,13 +199,13 @@ header.topbar {
   }
 
   &.has-metrics {
-    max-width: 640px;
+    max-width: none;
   }
 
   &.progress {
     --status-accent: rgba(255, 142, 64, 0.45);
     border-color: rgba(255, 158, 101, 0.4);
-    box-shadow: 0 24px 60px rgba(255, 109, 0, 0.18);
+    box-shadow: 0 24px 60px var(--npo-background-primary);
   }
 
   &.success {
@@ -235,13 +240,17 @@ header.topbar {
   opacity: 1;
 }
 
+.downloading .topbar-status__content {
+  gap: 12px;
+}
 .topbar-status__content {
   position: relative;
   z-index: 2;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;
+
 }
 
 .topbar-status__message {
@@ -250,46 +259,42 @@ header.topbar {
   letter-spacing: 0.012em;
   display: flex;
   align-items: center;
-  gap: 8px;
   text-align: left;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .topbar-status__metrics {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: stretch;
+  align-items: center;
+  gap: 8px;
   opacity: 0;
-  transform: translateY(-6px);
   transition: opacity 0.3s ease, transform 0.3s ease;
+  flex-wrap: nowrap;
   pointer-events: none;
 }
 
 .topbar-status__metrics.has-metrics {
   opacity: 1;
-  transform: translateY(0);
+
   pointer-events: auto;
 }
 
 .status-metric {
   --metric-fill: 0%;
-  --metric-width: 160px;
-  position: relative;
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(255, 255, 255, 0.05);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  flex: 0 0 var(--metric-width);
-  min-width: var(--metric-width);
-  max-width: var(--metric-width);
+  gap: 3px;
+  flex-shrink: 0;
   overflow: hidden;
   opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: opacity 0.26s ease, transform 0.26s ease, max-width 0.26s ease, padding 0.26s ease, margin 0.26s ease, border-width 0.26s ease;
+  position: relative;
 }
 
 .status-metric::after {
@@ -338,30 +343,37 @@ header.topbar {
 
 .status-metric.is-visible {
   opacity: 1;
-  transform: translateY(0);
 }
 
+.status-metric.is-exiting {
+  max-width: 0;
+  min-width: 0;
+  flex-basis: 0;
+  margin: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border-width: 0;
+}
+
+
 .status-metric[data-weight='xl'] {
-  --metric-width: 260px;
+  min-width: 200px;
+  max-width: 260px;
 }
 
 .status-metric[data-weight='lg'] {
-  --metric-width: 200px;
+  min-width: 160px;
+  max-width: 220px;
 }
 
 .status-metric[data-weight='md'] {
-  --metric-width: 160px;
+  min-width: 132px;
+  max-width: 180px;
 }
 
 .status-metric[data-weight='sm'] {
-  --metric-width: 132px;
-}
-
-.status-metric[data-key='progress'],
-.status-metric[data-key='speed'],
-.status-metric[data-key='eta'],
-.status-metric[data-key='size'] {
-  --metric-width: 140px;
+  min-width: 110px;
+  max-width: 160px;
 }
 
 @media (max-width: 900px) {
